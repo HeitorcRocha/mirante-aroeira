@@ -353,6 +353,24 @@ h1, h2, h3, p, figure { margin: 0; }
 
   .comuns__item { flex-basis: 78vw; }
   .comuns__item img { aspect-ratio: 4 / 5; }
+  /* No celular as fotos ocupam bem menos que a altura da tela. Com o palco em
+     100svh sobrava uma faixa vazia acima e abaixo delas, que virava um buraco
+     antes da ficha técnica. O palco fica do tamanho do conteúdo e gruda
+     centrado na tela. A conta: foto 4:5 de 78vw (97.5vw de altura) + o recuo
+     do trilho sob a barra (--bar-h) + legenda. Os 8.5rem da legenda têm folga
+     de propósito: o palco corta o que passar dele (overflow: clip), e a
+     legenda cresce em tela estreita ou com a fonte ampliada. */
+  .comuns [data-sc-stage] {
+    --comuns-h: min(100vh, calc(97.5vw + var(--bar-h) + 8.5rem));
+    height: var(--comuns-h);
+    top: calc((100vh - var(--comuns-h)) / 2);
+  }
+  @supports (height: 100svh) {
+    .comuns [data-sc-stage] {
+      --comuns-h: min(100svh, calc(97.5vw + var(--bar-h) + 8.5rem));
+      top: calc((100svh - var(--comuns-h)) / 2);
+    }
+  }
 
   .ficha__tabela th, .ficha__tabela td { padding-right: var(--sc-2); font-size: var(--sc-t-sm); }
   .ficha__tabela tbody th { font-size: var(--sc-t-base); }

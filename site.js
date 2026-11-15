@@ -2,13 +2,16 @@
    Mirante Aroeira: comportamento próprio da página.
 
    O motor (scrollcraft.js) cuida do vídeo, dos cues, do trilho lateral e dos
-   wipes. Este arquivo cuida de duas coisas que só existem neste site:
+   wipes. Este arquivo cuida de três coisas que só existem neste site:
 
      1. o ato das plantas: o desenho em SVG avança com o scroll e o corte do
         prédio acende os andares da planta em tela;
-     2. o formulário de visita, que monta um e-mail (nada é enviado daqui).
+     2. o formulário de visita, que monta um e-mail (nada é enviado daqui);
+     3. o carregamento antecipado das fotos das áreas comuns.
 
-   O motor não é editado. Aqui só lemos a posição do <section> na tela.
+   Aqui só lemos a posição do <section> na tela. O motor recebeu um único
+   ajuste, de desempenho: não mede o trilho nem reescreve estilos iguais a
+   cada quadro de scroll.
    ========================================================================== */
 (function () {
   "use strict";
@@ -18,6 +21,30 @@
   var smooth = function (x) { x = clamp01(x); return x * x * (3 - 2 * x); };
 
   ScrollCraft.mount(document.body);
+
+  /* ------------------------------------------------------- áreas comuns -- */
+  // As fotos do trilho são loading="lazy", e as que estão fora da tela na
+  // horizontal só baixavam e decodificavam ao deslizar para dentro, no meio do
+  // movimento: no celular isso aparecia como travada. Quando a seção chega a
+  // dois "telões" de distância, elas são pedidas e decodificadas de uma vez.
+  var comuns = document.querySelector ? document.querySelector(".comuns") : null;
+  if (comuns && typeof IntersectionObserver === "function") {
+    var aquecer = new IntersectionObserver(function (entries) {
+      if (!entries.some(function (e) { return e.isIntersecting; })) return;
+      aquecer.disconnect();
+      Array.prototype.forEach.call(comuns.querySelectorAll("img"), function (img) {
+        // decodifica só depois de a foto chegar: decode() numa imagem que o
+        // navegador ainda nem pediu não adianta nada
+        var decodificar = function () {
+          if (img.decode) img.decode().catch(function () { /* a foto aparece do mesmo jeito */ });
+        };
+        img.loading = "eager";
+        if (img.complete) decodificar();
+        else img.addEventListener("load", decodificar, { once: true });
+      });
+    }, { rootMargin: "200% 0px" });
+    aquecer.observe(comuns);
+  }
 
   /* ------------------------------------------------------------ plantas -- */
   var act = document.getElementById("plantas");

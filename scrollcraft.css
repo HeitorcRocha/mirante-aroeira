@@ -277,6 +277,23 @@ video[data-sc-scrub] { opacity: 0; transition: opacity 380ms var(--sc-ease-out);
 
 /* horizontal rail */
 [data-sc-pan] { display: flex; will-change: transform; }
+/* The rail driven by scroll position on the compositor, where the browser
+   supports it (the engine adds these classes; without them it writes the
+   transform itself). "contain" on an act taller than the viewport runs from
+   its top meeting the top of the screen to its bottom meeting the bottom: the
+   same span the engine calls p. --sc-rail-end is measured by the engine. */
+@supports (animation-timeline: view()) {
+  .sc-act--pan-css { view-timeline: --sc-pan block; }
+  .sc-pan--css {
+    animation: sc-pan linear both;
+    animation-timeline: --sc-pan;
+    animation-range: contain 0% contain 100%;
+  }
+  @keyframes sc-pan {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(var(--sc-rail-end, 0px), 0, 0); }
+  }
+}
 
 /* reveal + parallax */
 [data-sc-reveal] { will-change: clip-path; }

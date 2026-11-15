@@ -370,7 +370,20 @@
 
       // horizontal rail
       act.rail = el.querySelector('[data-sc-pan]');
-      if (act.rail) act.railExtra = parseFloat(act.rail.getAttribute('data-sc-pan')) || 0;
+      if (act.rail) {
+        act.railExtra = parseFloat(act.rail.getAttribute('data-sc-pan')) || 0;
+        // Where the browser can tie an animation to scroll position, the rail is
+        // moved by CSS (scrollcraft.css, .sc-pan--css) on the compositor, in the
+        // same frame as the scroll itself. A transform written from a scroll
+        // handler lands a frame late on a phone, where scrolling does not wait
+        // for the main thread, and that lag reads as a stutter. A dwell remap is
+        // not linear in scroll, so those acts stay on the JS path.
+        act.railCss = !act.dwell && !!(window.CSS && CSS.supports && CSS.supports('animation-timeline: view()'));
+        if (act.railCss) {
+          el.classList.add('sc-act--pan-css');
+          act.rail.classList.add('sc-pan--css');
+        }
+      }
 
       // cues
       Array.prototype.forEach.call(el.querySelectorAll('[data-sc-cue]'), function (c) {
@@ -594,6 +607,17 @@
         var r = a.el.getBoundingClientRect();
         a.top = r.top + scrollY;
         a.height = r.height;
+        // Measured here, not in read(): scrollWidth read after a style write
+        // forces a synchronous layout on every scroll frame, which a phone
+        // shows as a stutter in the pan.
+        if (a.rail) {
+          a.railOver = a.rail.scrollWidth - vw;
+          if (a.railCss) {
+            // the end of the travel, for the CSS keyframes
+            var end = a.railOver > 0 ? -(a.railOver * (1 + (a.railExtra || 0))) : 0;
+            a.rail.style.setProperty('--sc-rail-end', end.toFixed(2) + 'px');
+          }
+        }
       });
       if (acts.length) {
         acts.forEach(function (a) {
@@ -845,6 +869,7 @@
     }
 
     // ---- per-frame scroll read -------------------------------------------
+    var lastCanvas = '';
     function read() {
       if (scDead) return;
       y = scrollY || pageYOffset;
@@ -883,7 +908,10 @@
           a.vp = a.dwell ? dwell(vraw, a.dwell) : vraw;
         }
         a.live = (y > a.top - vh * 1.25) && (y < a.top + a.height + vh * 1.25);
-        a.el.style.setProperty('--sc-p', a.p.toFixed(4));
+        // Only write what changed. An act parked at 0 or 1 off screen would
+        // otherwise have its whole subtree restyled on every scroll frame.
+        var pStr = a.p.toFixed(4);
+        if (pStr !== a.pStr) { a.pStr = pStr; a.el.style.setProperty('--sc-p', pStr); }
 
         // Fetch earlier than we drive. A 1080p clip is megabytes, and a reader
         // who scrolls briskly will otherwise arrive at a stage that is still
@@ -897,11 +925,15 @@
         if (a.video) { a.video.live = a.live; if (a.video.ready) a.video.target = a.vp; }
 
         // horizontal rail
-        if (a.rail) {
-          var over = a.rail.scrollWidth - vw;
+        if (a.rail && !a.railCss) {
+          var over = a.railOver || 0;
           if (over > 0) {
             var extra = over * (a.railExtra || 0);
-            a.rail.style.transform = 'translate3d(' + (-(over + extra) * a.p).toFixed(2) + 'px,0,0)';
+            var tx = (-(over + extra) * a.p).toFixed(2);
+            if (tx !== a.railTx) { a.railTx = tx; a.rail.style.transform = 'translate3d(' + tx + 'px,0,0)'; }
+          } else if (a.railTx) {
+            // The rail now fits the viewport (a resize): drop the old offset.
+            a.railTx = ''; a.rail.style.transform = '';
           }
         }
 
@@ -1009,7 +1041,10 @@
         if (D.act.raw >= 1) { driftA = D; driftB = D; driftT = 1; }
       }
       if (driftA) {
-        docEl.style.setProperty('--sc-canvas', mixColor(driftB.rgb, driftA.rgb, driftT));
+        // --sc-canvas lives on the root and feeds gradients all over the page:
+        // rewriting it restyles the whole document, so skip identical values.
+        var canvas = mixColor(driftB.rgb, driftA.rgb, driftT);
+        if (canvas !== lastCanvas) { lastCanvas = canvas; docEl.style.setProperty('--sc-canvas', canvas); }
       }
 
       if (progressBar) {
