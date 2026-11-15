@@ -1,0 +1,202 @@
+/* ============================================================================
+   Mirante Aroeira: espelho de vendas (espelho.html).
+
+   A casca (barra, cena, painel, gaveta no celular, controle de sol, bússola)
+   é a do tour e vem de tour.css. Aqui fica só o que é do espelho: os botões de
+   vista, a ficha da unidade, a grade de unidades e a legenda.
+
+   Cores de status: verde = disponível, azul = reservada, cinza = vendida. O
+   âmbar da marca fica reservado para a seleção. O status nunca depende só da
+   cor: cada um tem um ícone próprio, a legenda por extenso e o rótulo
+   acessível de cada célula.
+   ========================================================================== */
+/* Em :root, não no body: tour/espelho.js lê estas cores do elemento raiz para
+   pintar a torre, e variável de CSS só herda para baixo. */
+:root {
+  --st-disponivel: #7CC79B;
+  --st-reservada:  #8FB0EE;
+  --st-vendida:    #8B8F97;
+}
+.espelho { --panel-w: 24rem; }
+
+/* --------------------------------------------------------------- vistas -- */
+.views {
+  position: absolute; left: var(--sc-4); top: var(--sc-4);
+  display: flex; gap: 2px; padding: 3px;
+  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-pill);
+  background: color-mix(in oklab, var(--sc-canvas) 78%, transparent);
+}
+.views button {
+  min-height: var(--tap); min-width: var(--tap); padding: 0 var(--sc-4);
+  border: 0; border-radius: var(--sc-r-pill); background: transparent;
+  color: var(--sc-ink-soft); font-size: var(--sc-t-sm); font-weight: 500; cursor: pointer;
+  transition: background-color 160ms var(--sc-ease-out), color 160ms var(--sc-ease-out);
+}
+.views button[aria-pressed="true"] { background: var(--sc-accent); color: var(--sc-accent-ink); }
+.views button:focus-visible { border-radius: var(--sc-r-pill); }
+.espelho .scene canvas.is-over { cursor: pointer; }
+
+/* --------------------------------------------------------------- painel -- */
+.espelho .panel__head { gap: var(--sc-2); }
+.panel__resumo { color: var(--sc-ink-soft); font-size: var(--sc-t-sm); text-wrap: pretty; min-height: 1.5em; }
+.panel__resumo strong { color: var(--sc-ink); font-weight: 500; }
+
+/* ---------------------------------------------------------------- ficha -- */
+.fichau__vazia { color: var(--sc-ink-soft); font-size: var(--sc-t-sm); text-wrap: pretty; }
+.fichau__topo { display: flex; align-items: center; justify-content: space-between; gap: var(--sc-3); }
+.fichau__num {
+  font-family: var(--sc-font-display); font-size: var(--sc-t-lg); letter-spacing: var(--sc-track-snug);
+  font-variant-numeric: tabular-nums; line-height: 1.15;
+}
+.fichau__status {
+  display: inline-flex; align-items: center; gap: var(--sc-2);
+  padding: 0.2rem 0.65rem; border-radius: var(--sc-r-pill);
+  border: 1px solid color-mix(in oklab, var(--st) 55%, transparent);
+  background: color-mix(in oklab, var(--st) 14%, transparent);
+  color: var(--st); font-size: var(--sc-t-xs); font-weight: 500;
+}
+/* os quatro dados curtos em duas colunas; as duas linhas de sol na largura toda */
+.fichau__dados { margin: var(--sc-3) 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--sc-4); }
+.fichau__dados div {
+  display: grid; gap: 0; align-content: start;
+  padding-block: 0.4rem; border-top: 1px solid var(--sc-hairline);
+  font-size: var(--sc-t-sm);
+}
+.fichau__dados div:nth-child(n+5) { grid-column: 1 / -1; grid-template-columns: 7rem minmax(0, 1fr); gap: var(--sc-3); }
+.fichau__dados div:nth-child(-n+4) dt { font-size: var(--sc-t-xs); }
+.fichau__dados dt { color: var(--sc-ink-soft); }
+.fichau__dados dd { margin: 0; font-variant-numeric: tabular-nums; text-wrap: pretty; }
+.fichau__acoes { display: flex; flex-wrap: wrap; gap: var(--sc-2); margin-top: var(--sc-3); }
+.fichau__acoes > * { flex: 1 1 auto; justify-content: center; }
+.fichau__nota { margin-top: var(--sc-3); color: var(--sc-ink-soft); font-size: var(--sc-t-xs); text-wrap: pretty; }
+.fichau__nota:empty { display: none; }
+
+[data-status="disponivel"] { --st: var(--st-disponivel); }
+[data-status="reservada"]  { --st: var(--st-reservada); }
+[data-status="vendida"]    { --st: var(--st-vendida); }
+
+/* ícone de status: o desenho muda com o status, não só a cor */
+.st-ico { flex: none; width: 0.7rem; height: 0.7rem; display: block; }
+.st-ico * { vector-effect: non-scaling-stroke; }
+
+/* ---------------------------------------------------- controles da grade -- */
+.mirror__tools { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sc-2); align-items: center; }
+.mirror__tipo select { width: 100%; padding-inline: var(--sc-3); }
+
+.switch {
+  display: inline-flex; align-items: center; gap: var(--sc-2);
+  min-height: var(--tap); padding: 0 var(--sc-3) 0 var(--sc-2);
+  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-md); background: transparent;
+  font-size: var(--sc-t-sm); cursor: pointer;
+}
+.switch__track {
+  position: relative; width: 2.1rem; height: 1.2rem; border-radius: var(--sc-r-pill);
+  background: color-mix(in oklab, var(--sc-ink) 22%, transparent);
+  transition: background-color 160ms var(--sc-ease-out);
+}
+.switch__track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.2rem - 4px); height: calc(1.2rem - 4px);
+  border-radius: 50%; background: var(--sc-ink);
+  transition: transform 160ms var(--sc-ease-out), background-color 160ms var(--sc-ease-out);
+}
+.switch[aria-pressed="true"] .switch__track { background: var(--sc-accent); }
+.switch[aria-pressed="true"] .switch__track::after { transform: translateX(0.9rem); background: var(--sc-accent-ink); }
+.switch:focus-visible { border-radius: var(--sc-r-md); }
+
+.legend {
+  list-style: none; margin: var(--sc-3) 0 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: 0.25rem 1rem;
+  font-size: var(--sc-t-xs); color: var(--sc-ink-soft);
+}
+.legend li { display: inline-flex; align-items: center; gap: 0.4rem; }
+.legend .st-ico { color: var(--sc-ink-soft); }
+.legend b { color: var(--sc-ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+.is-avail .legend .st-ico { color: var(--st); }
+
+/* ---------------------------------------------------------------- grade -- */
+.mirror__heads {
+  display: grid; grid-template-columns: 1.9rem repeat(2, minmax(0, 1fr)); gap: 4px;
+  margin-top: var(--sc-3);
+  font-size: var(--sc-t-xs); color: var(--sc-ink-soft); text-align: center;
+}
+.mirror__heads span:first-child { grid-column: 2; }
+.mirror { display: grid; gap: 4px; margin-top: var(--sc-1); }
+.mirror__band {
+  margin-top: var(--sc-2); padding-left: calc(1.9rem + 4px);
+  font-size: var(--sc-t-xs); color: var(--sc-ink-soft);
+}
+.mirror__band:first-child { margin-top: 0; }
+.mirror__row {
+  display: grid; grid-template-columns: 1.9rem repeat(12, minmax(0, 1fr)); gap: 4px;
+  transition: opacity 160ms var(--sc-ease-out);
+}
+/* O filtro destaca uma tipologia, não bloqueia as outras: as células seguem
+   clicáveis, então o esmaecido precisa continuar legível. */
+.mirror__row.is-dim, .mirror__band.is-dim { opacity: 0.6; }
+.mirror__floor {
+  display: grid; place-items: center start;
+  font-size: var(--sc-t-xs); color: var(--sc-ink-soft); font-variant-numeric: tabular-nums;
+}
+.mirror__cell { display: grid; min-width: 0; }
+.cell {
+  display: flex; align-items: center; justify-content: center; gap: 0.3rem;
+  min-width: 0; min-height: var(--tap); padding: 0 0.15rem;
+  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-sm);
+  background: transparent; color: var(--sc-ink);
+  font-size: var(--sc-t-xs); font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: background-color 140ms var(--sc-ease-out), border-color 140ms var(--sc-ease-out);
+}
+.cell .st-ico { color: var(--sc-ink-soft); width: 0.6rem; height: 0.6rem; }
+.cell[data-status="vendida"] { color: var(--sc-ink-soft); }
+.cell[data-status="vendida"] .cell__n { text-decoration: line-through; text-decoration-thickness: 1px; }
+.cell[data-status="reservada"] { border-style: dashed; }
+
+.is-avail .cell { border-color: color-mix(in oklab, var(--st) 55%, transparent); background: color-mix(in oklab, var(--st) 20%, transparent); }
+.is-avail .cell .st-ico { color: var(--st); }
+.is-avail .cell[data-status="vendida"] { background: color-mix(in oklab, var(--st) 7%, transparent); border-color: color-mix(in oklab, var(--st) 35%, transparent); }
+
+.cell.is-hover { border-color: var(--sc-ink); }
+.cell[aria-pressed="true"], .is-avail .cell[aria-pressed="true"] {
+  background: var(--sc-accent); border-color: var(--sc-accent); border-style: solid; color: var(--sc-accent-ink);
+}
+.cell[aria-pressed="true"] .st-ico, .is-avail .cell[aria-pressed="true"] .st-ico { color: var(--sc-accent-ink); }
+.cell:focus-visible { outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  /* com mouse a grade pode ser mais baixa: os 16 andares cabem em menos rolagem */
+  .cell { min-height: 2.15rem; }
+  .cell:hover { border-color: var(--sc-ink); }
+  .views button[aria-pressed="false"]:hover { color: var(--sc-ink); }
+  .switch:hover { border-color: color-mix(in oklab, var(--sc-ink) 42%, transparent); }
+}
+.mirror__aviso { margin-top: var(--sc-3); font-size: var(--sc-t-xs); color: var(--sc-ink-soft); text-wrap: pretty; }
+
+/* No desktop a ficha da unidade escolhida fica presa no alto do painel
+   enquanto a grade rola por baixo: escolher uma célula lá embaixo não esconde
+   a ficha. Em tela baixa ela rola junto, para não tomar o painel inteiro. */
+@media (min-width: 861px) and (min-height: 760px) {
+  .fichau.has-unit {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--sc-surface); padding-bottom: var(--sc-4);
+    box-shadow: 0 1px 0 var(--sc-hairline);
+  }
+}
+
+/* --------------------------------------------------------------- celular -- */
+@media (max-width: 860px) {
+  .espelho .tbar__back { margin-right: auto; }
+  .views { left: var(--sc-3); top: var(--sc-3); }
+  .views button { padding: 0 var(--sc-3); }
+  .espelho .panel__head { grid-template-columns: minmax(0, 1fr); gap: var(--sc-1); }
+  .espelho .panel__toggle { margin-top: var(--sc-1); }
+  .espelho .panel__body { max-height: 46svh; }
+  .fichau__dados div:nth-child(n+5) { grid-template-columns: 6.5rem minmax(0, 1fr); }
+}
+@media (max-width: 860px) and (max-height: 480px) {
+  .espelho .panel__body { max-height: 34svh; }
+  .espelho .panel__title { display: none; }
+}
+@media (max-width: 480px) {
+  /* na barra do espelho sobra lugar: o voltar mantém o nome */
+  .espelho .tbar__back span { display: inline; }
+  .espelho .tbar__back { justify-content: flex-start; padding-right: var(--sc-2); }
+}

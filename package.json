@@ -1,0 +1,16 @@
+{
+  "name": "mirante-aroeira",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Página de demonstração do Mirante Aroeira (empreendimento fictício). Site estático: HTML, CSS e JS puros.",
+  "scripts": {
+    "plantas": "node tools/plans.mjs",
+    "vendor": "node tools/vendor.mjs",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.65.0",
+    "three": "^0.187.0"
+  }
+}

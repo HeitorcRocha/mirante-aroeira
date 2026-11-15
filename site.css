@@ -1,0 +1,421 @@
+/* ============================================================================
+   Mirante Aroeira: o que é deste site.
+   scrollcraft.css é o motor e não deve ser editado. Aqui ficam os tokens da
+   marca e as classes da página.
+   ========================================================================== */
+
+/* Fontes hospedadas aqui, não no Google Fonts: a página não faz nenhuma
+   requisição a terceiros. As duas são variáveis (um arquivo cobre todos os
+   pesos) e estão sob a licença SIL Open Font License (ver assets/fonts). */
+@font-face {
+  font-family: "Outfit"; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("assets/fonts/outfit-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist"; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("assets/fonts/geist-latin.woff2") format("woff2");
+}
+
+:root {
+  /* seis cores, um acento: a luz âmbar das janelas acesas */
+  --sc-canvas:     #0A0C10;
+  --sc-surface:    #13161C;
+  --sc-ink:        #F3F0EA;
+  --sc-ink-soft:   #A8A39A;
+  --sc-accent:     #F0B56E;
+  --sc-accent-ink: #17110A;
+  --sc-font-display: "Outfit", system-ui, sans-serif;
+  --sc-font-text:    "Geist", system-ui, sans-serif;
+
+  --bar-h: 4rem;
+}
+
+h1, h2, h3, p, figure { margin: 0; }
+.sc-display { font-weight: 400; }
+
+/* ------------------------------------------------------------------ botão -- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 3rem; padding: 0 1.5rem;
+  border: 0; border-radius: var(--sc-r-pill);
+  background: var(--sc-accent); color: var(--sc-accent-ink);
+  font-family: var(--sc-font-text); font-size: var(--sc-t-sm); font-weight: 500;
+  letter-spacing: 0; text-decoration: none; white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 140ms var(--sc-ease-out), transform 120ms var(--sc-ease-out);
+}
+.btn--sm { min-height: 2.75rem; padding: 0 1.15rem; }
+.btn:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover { background: color-mix(in oklab, var(--sc-accent) 84%, white); }
+}
+
+/* ------------------------------------------------------------------ barra -- */
+.bar {
+  position: fixed; inset: 0 0 auto 0; z-index: var(--sc-z-chrome);
+  height: var(--bar-h);
+  display: flex; align-items: center; justify-content: space-between;
+  padding-inline: var(--sc-gutter);
+}
+/* densidade só atrás da barra, para o nome continuar legível sobre o vídeo */
+.bar::before {
+  content: ""; position: absolute; inset: 0 0 -1.75rem 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(to bottom,
+    color-mix(in oklab, var(--sc-canvas) 72%, transparent) 0%,
+    color-mix(in oklab, var(--sc-canvas) 38%, transparent) 55%,
+    transparent 100%);
+}
+.bar__mark {
+  font-family: var(--sc-font-display); font-size: 1.1rem; font-weight: 500;
+  letter-spacing: 0.01em; text-decoration: none;
+  padding-block: 0.6rem;
+}
+
+/* ------------------------------------------------------------- 1 · hero -- */
+.hero__frame {
+  position: absolute; inset: 0; overflow: hidden;
+  background: var(--sc-canvas);
+  /* Saída: nos últimos 24% do ato a moldura encolhe e ganha raio, e o vídeo
+     vira uma "janela" que a seção seguinte recebe. --sc-p é publicado pelo
+     motor no <section> e herdado aqui. */
+  --k: clamp(0, calc((var(--sc-p, 0) - 0.76) / 0.24), 1);
+  clip-path: inset(calc(var(--k) * 9vh) calc(var(--k) * 6vw) round calc(var(--k) * 28px));
+}
+.hero__mist {
+  position: absolute; inset: auto -10% -18% -10%; height: 62%;
+  background: radial-gradient(58% 72% at 50% 100%,
+    color-mix(in oklab, #6f86b4 26%, transparent) 0%, transparent 72%);
+  mix-blend-mode: screen; pointer-events: none;
+}
+/* dois cantos de densidade, um para cada bloco de texto; o centro, onde está
+   a torre, fica intocado */
+.hero__scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(to top right,
+      color-mix(in oklab, var(--sc-canvas) 92%, transparent) 0%,
+      color-mix(in oklab, var(--sc-canvas) 66%, transparent) 26%,
+      color-mix(in oklab, var(--sc-canvas) 22%, transparent) 42%,
+      transparent 56%),
+    linear-gradient(to top left,
+      color-mix(in oklab, var(--sc-canvas) 86%, transparent) 0%,
+      color-mix(in oklab, var(--sc-canvas) 50%, transparent) 24%,
+      transparent 46%);
+}
+.hero__copy { max-width: min(34rem, 35vw); }
+.hero__copy .sc-lede { margin-top: var(--sc-5); color: var(--sc-ink); max-width: 34ch; }
+/* menor que o degrau xl do motor: a torre ocupa o centro e o título não pode
+   encostar nela */
+.hero h1 { font-weight: 300; font-size: clamp(2.8rem, 1rem + 4.2vw, 5.25rem); line-height: 1; }
+
+/* ---------------------------------------------------------- 2 · entrada -- */
+/* seção em fluxo logo depois de um ato fixo: menos respiro em cima */
+.entrada { padding-block: clamp(2.5rem, 6vw, 6rem) var(--sc-section); }
+.entrada__grid {
+  display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(2rem, 5vw, 5rem); align-items: end;
+}
+.entrada__foto { border-radius: var(--sc-r-lg); overflow: hidden; }
+.entrada__foto img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; }
+
+/* ---------------------------------------------------------- 3 · plantas -- */
+.plantas {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: clamp(1.25rem, 2.6vw, 3rem);
+  row-gap: clamp(0.5rem, 2vh, 1.5rem);
+  padding: calc(var(--bar-h) + 0.75rem) var(--sc-gutter) clamp(1.25rem, 4vh, 3rem);
+}
+.plantas__head {
+  grid-column: 1 / -1;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 1.5rem;
+}
+
+.torre { grid-row: 2; align-self: center; height: min(54vh, 26rem); width: auto; max-width: none; }
+.torre__andar {
+  fill: color-mix(in oklab, var(--sc-ink) 11%, transparent);
+  transition: fill 260ms var(--sc-ease-out);
+}
+.torre__andar--terreo { fill: color-mix(in oklab, var(--sc-ink) 20%, transparent); }
+.torre__andar.on { fill: var(--sc-accent); }
+.torre__chao { stroke: var(--sc-hairline-strong); stroke-width: 1; }
+
+.plantas__units { grid-row: 2; grid-column: 2; position: relative; min-height: 0; }
+.unit {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 3vw, 4rem); align-items: center;
+}
+/* com JS as três unidades ocupam o mesmo lugar e site.js troca a opacidade;
+   sem JS elas ficam empilhadas, uma embaixo da outra */
+.js .unit { position: absolute; inset: 0; }
+/* só opacidade: visibility: hidden tiraria as plantas do leitor de tela */
+.js .unit:not(:first-child) { opacity: 0; pointer-events: none; }
+.unit + .unit { margin-top: var(--sc-8); }
+.js .unit + .unit { margin-top: 0; }
+
+.unit__plan { height: 100%; min-height: 0; display: flex; align-items: center; }
+.plan { width: 100%; height: auto; max-height: 100%; overflow: visible; }
+
+.plan .draw {
+  fill: none; stroke: var(--sc-ink); stroke-width: 2.4;
+  stroke-linecap: square; stroke-linejoin: miter;
+  stroke-dasharray: 1; stroke-dashoffset: 0;
+}
+.plan .wall--outer { stroke-width: 6; }
+.plan .glass { stroke: var(--sc-accent); stroke-width: 4; stroke-linecap: butt; }
+.plan .rail { stroke: var(--sc-ink-soft); stroke-width: 1.6; }
+.plan .door { stroke: var(--sc-ink-soft); stroke-width: 1.4; stroke-linecap: round; }
+.plan .fit { stroke: color-mix(in oklab, var(--sc-ink) 26%, transparent); stroke-width: 1.2; }
+.plan .dim { stroke: var(--sc-ink-soft); stroke-width: 1.2; }
+.plan .room { fill: var(--sc-accent); fill-opacity: 0.05; }
+.plan text { font-family: var(--sc-font-text); letter-spacing: 0; }
+.plan .dimtext { fill: var(--sc-ink-soft); font-size: 17px; font-variant-numeric: tabular-nums; }
+.plan .lbl__n { fill: var(--sc-ink); font-size: 18px; font-weight: 500; }
+.plan .lbl__a { fill: var(--sc-ink-soft); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+.unit__nome { font-size: var(--sc-t-2xl); letter-spacing: var(--sc-track-snug); }
+.unit__meta {
+  margin-top: var(--sc-2);
+  color: var(--sc-accent); font-size: var(--sc-t-sm); font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.unit__desc { margin-top: var(--sc-4); color: var(--sc-ink-soft); max-width: 40ch; text-wrap: pretty; }
+/* Entrada do tour 3D: secundária em relação ao "Agendar visita" (a única
+   ação cheia da página), por isso só contorno. Mesma altura do .btn--sm. */
+.unit__tour {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 2.75rem; padding: 0 1.15rem; margin-top: var(--sc-4);
+  border: 1px solid color-mix(in oklab, var(--sc-accent) 70%, transparent); border-radius: var(--sc-r-pill);
+  color: var(--sc-accent);
+  font-family: var(--sc-font-text); font-size: var(--sc-t-sm); font-weight: 500;
+  text-decoration: none; white-space: nowrap;
+  transition: background-color 140ms var(--sc-ease-out), color 140ms var(--sc-ease-out), transform 120ms var(--sc-ease-out);
+}
+.unit__tour:active { transform: scale(0.97); }
+.unit__tour:focus-visible { border-radius: var(--sc-r-pill); }
+@media (hover: hover) and (pointer: fine) {
+  .unit__tour:hover { background: var(--sc-accent); color: var(--sc-accent-ink); }
+}
+.unit__foto {
+  margin-top: var(--sc-5);
+  border-radius: var(--sc-r-md); overflow: hidden;
+  box-shadow: var(--sc-e2), var(--sc-edge);
+}
+.unit__foto img { width: 100%; height: auto; aspect-ratio: 16 / 9; max-height: 30vh; object-fit: cover; }
+
+/* No desktop os cômodos estão escritos dentro da planta, então a lista fica só
+   para leitores de tela. No celular é o contrário (ver media query). */
+.unit__rooms {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; list-style: none;
+}
+
+/* ----------------------------------------------------- 4 · áreas comuns -- */
+.comuns__rail {
+  align-items: center; height: 100%; width: max-content;
+  gap: clamp(1.5rem, 4vw, 4.5rem);
+  padding-inline: var(--sc-gutter);
+  padding-top: var(--bar-h);
+}
+.comuns__lead { flex: 0 0 min(30rem, 80vw); }
+.comuns__item { flex: 0 0 clamp(18rem, 48vw, 46rem); }
+.comuns__item img {
+  width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover;
+  border-radius: var(--sc-r-lg);
+  box-shadow: var(--sc-e3);
+}
+.comuns__item figcaption { margin-top: var(--sc-4); }
+.comuns__item h3 {
+  font-family: var(--sc-font-display); font-size: var(--sc-t-lg); font-weight: 400;
+  letter-spacing: var(--sc-track-snug); line-height: 1.2;
+}
+.comuns__item figcaption p { margin-top: var(--sc-1); color: var(--sc-ink-soft); font-size: var(--sc-t-sm); }
+.comuns__note { flex: 0 0 min(22rem, 72vw); color: var(--sc-ink); }
+
+/* ------------------------------------------------------------ 5 · ficha -- */
+.ficha { padding-block: clamp(2.5rem, 6vw, 6rem) var(--sc-section); }
+.ficha__grid {
+  display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  gap: clamp(2rem, 5vw, 5rem); align-items: start;
+}
+.ficha__tabela { width: 100%; border-collapse: collapse; text-align: left; }
+.ficha__tabela th, .ficha__tabela td {
+  padding: var(--sc-4) var(--sc-4) var(--sc-4) 0;
+  border-bottom: 1px solid var(--sc-hairline);
+  font-weight: 400; vertical-align: baseline;
+}
+.ficha__tabela thead th {
+  font-size: var(--sc-t-xs); color: var(--sc-ink-soft);
+  padding-block: 0 var(--sc-3); border-bottom-color: var(--sc-hairline-strong);
+}
+.ficha__tabela tbody th { font-family: var(--sc-font-display); font-size: var(--sc-t-lg); letter-spacing: var(--sc-track-snug); }
+.ficha__tabela td { color: var(--sc-ink-soft); }
+.ficha__lista { margin: var(--sc-7) 0 0; display: grid; gap: var(--sc-4); }
+.ficha__lista div { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: var(--sc-4); }
+.ficha__lista dt { color: var(--sc-ink-soft); font-size: var(--sc-t-sm); }
+.ficha__lista dd { margin: 0; }
+/* entrada do espelho de vendas: um link de texto, sem competir com o CTA */
+.ficha__link {
+  color: var(--sc-accent); text-decoration: underline; text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in oklab, var(--sc-accent) 45%, transparent);
+  display: inline-block; padding-block: 0.6rem; margin-block: -0.6rem;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ficha__link:hover { text-decoration-color: currentColor; }
+}
+
+/* ----------------------------------------------------------- 6 · visita -- */
+.visita {
+  display: grid; grid-template-rows: minmax(0, 1fr) auto;
+  padding: calc(var(--bar-h) + 0.5rem) var(--sc-gutter) var(--sc-5);
+}
+.visita__bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+/* coluna de densidade só do lado do formulário */
+.visita__scrim {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(to right,
+      color-mix(in oklab, var(--sc-canvas) 90%, transparent) 0%,
+      color-mix(in oklab, var(--sc-canvas) 62%, transparent) 38%,
+      transparent 68%),
+    linear-gradient(to top, color-mix(in oklab, var(--sc-canvas) 88%, transparent) 0%, transparent 22%);
+}
+.visita__panel { position: relative; z-index: 2; align-self: center; max-width: 27rem; }
+.visita__panel > .sc-body { margin-top: var(--sc-4); color: var(--sc-ink); }
+.visita__form { margin-top: var(--sc-6); display: grid; gap: var(--sc-4); }
+.visita__form label { display: grid; gap: var(--sc-2); font-size: var(--sc-t-sm); color: var(--sc-ink-soft); }
+.visita__form input, .visita__form select {
+  width: 100%; min-height: 3rem; padding: 0 var(--sc-4);
+  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-md);
+  background: color-mix(in oklab, var(--sc-canvas) 82%, transparent);
+  color: var(--sc-ink); font-size: var(--sc-t-base);
+  transition: border-color 140ms var(--sc-ease-out);
+}
+.visita__form select option { background: var(--sc-surface); color: var(--sc-ink); }
+.visita__form :is(input, select):focus-visible { outline-offset: 2px; border-color: var(--sc-accent); border-radius: var(--sc-r-md); }
+@media (hover: hover) and (pointer: fine) {
+  .visita__form :is(input, select):hover { border-color: color-mix(in oklab, var(--sc-ink) 42%, transparent); }
+}
+.visita__form .btn { justify-self: start; margin-top: var(--sc-2); }
+.visita__aviso { font-size: var(--sc-t-xs); color: var(--sc-ink-soft); max-width: 38ch; }
+
+.rodape { position: relative; z-index: 2; }
+.rodape p { font-size: var(--sc-t-xs); color: var(--sc-ink-soft); max-width: 62ch; }
+
+/* -------------------------------------------------------------- celular -- */
+@media (max-width: 860px) {
+  :root { --bar-h: 3.5rem; }
+
+  /* no retrato os dois blocos ocupam a largura toda: uma faixa embaixo */
+  .hero__scrim {
+    background: linear-gradient(to top,
+      color-mix(in oklab, var(--sc-canvas) 94%, transparent) 0%,
+      color-mix(in oklab, var(--sc-canvas) 76%, transparent) 24%,
+      color-mix(in oklab, var(--sc-canvas) 30%, transparent) 44%,
+      transparent 60%);
+  }
+  .hero__frame { clip-path: inset(calc(var(--k) * 7vh) calc(var(--k) * 5vw) round calc(var(--k) * 20px)); }
+  .hero__copy { max-width: none; }
+  .hero h1 { font-size: var(--sc-t-2xl); line-height: 1.02; }
+
+  .entrada__grid, .ficha__grid { grid-template-columns: minmax(0, 1fr); }
+
+  .plantas { column-gap: var(--sc-4); row-gap: var(--sc-2); padding-bottom: var(--sc-4); }
+  .plantas__head .sc-body { display: none; }
+  .torre { grid-row: 1; grid-column: 2; justify-self: end; height: 3.25rem; align-self: end; }
+  .plantas__head { grid-column: 1; }
+  .plantas__units { grid-column: 1 / -1; }
+  .unit { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: var(--sc-3); align-items: start; }
+  .unit__plan { height: auto; }
+  .plan .lbl { display: none; }
+  .plan .draw { stroke-width: 3.2; }
+  .plan .wall--outer { stroke-width: 8; }
+  .plan .glass { stroke-width: 6; }
+  .plan .rail, .plan .door, .plan .fit, .plan .dim { stroke-width: 2; }
+  .plan .dimtext { font-size: 26px; }
+  .unit__nome { font-size: var(--sc-t-xl); }
+  .unit__desc { margin-top: var(--sc-2); font-size: var(--sc-t-sm); }
+  .unit__tour { align-self: flex-start; flex: none; margin-top: var(--sc-3); }
+  /* a foto ocupa a altura que sobrar embaixo do texto, sem empurrar nada */
+  .unit__info { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+  .unit__foto { order: 5; flex: 1 1 0; min-height: 0; max-height: 30svh; margin-top: var(--sc-4); }
+  .unit__foto img { height: 100%; max-height: none; aspect-ratio: auto; }
+  .unit__rooms {
+    position: static; width: auto; height: auto; margin: var(--sc-3) 0 0; overflow: visible;
+    clip-path: none; white-space: normal;
+    display: flex; flex-wrap: wrap; gap: 0.15rem 0.9rem;
+    font-size: var(--sc-t-xs); line-height: 1.5; color: var(--sc-ink-soft);
+  }
+  .unit__rooms li { transition: color 200ms var(--sc-ease-out); }
+  .unit__rooms li.on { color: var(--sc-ink); }
+  .unit__m2 { font-variant-numeric: tabular-nums; opacity: 0.8; }
+
+  .comuns__item { flex-basis: 78vw; }
+  .comuns__item img { aspect-ratio: 4 / 5; }
+
+  .ficha__tabela th, .ficha__tabela td { padding-right: var(--sc-2); font-size: var(--sc-t-sm); }
+  .ficha__tabela tbody th { font-size: var(--sc-t-base); }
+  .ficha__lista div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+
+  .visita__scrim {
+    background: linear-gradient(to top,
+      color-mix(in oklab, var(--sc-canvas) 94%, transparent) 0%,
+      color-mix(in oklab, var(--sc-canvas) 80%, transparent) 55%,
+      color-mix(in oklab, var(--sc-canvas) 40%, transparent) 100%);
+  }
+  .visita__panel { max-width: none; align-self: end; padding-bottom: var(--sc-5); }
+  .visita__form { margin-top: var(--sc-5); gap: var(--sc-3); }
+  .visita__form .btn { justify-self: stretch; }
+}
+
+/* Telas baixas (notebook de 13", celular compacto): o fechamento é um palco de
+   uma tela só, então o título e os campos encolhem para caber sem passar por
+   baixo da barra nem por cima do rodapé. */
+@media (max-height: 760px) {
+  .visita__panel h2 { font-size: var(--sc-t-2xl); letter-spacing: var(--sc-track-snug); }
+  .visita__panel > .sc-body { margin-top: var(--sc-2); }
+  .visita__form { margin-top: var(--sc-4); gap: var(--sc-3); }
+  .visita__form label { gap: var(--sc-1); }
+  .visita__form input, .visita__form select { min-height: 2.75rem; }
+  .visita__form .btn { margin-top: 0; }
+}
+@media (max-width: 860px) and (max-height: 760px) {
+  .visita__panel h2 { font-size: var(--sc-t-xl); }
+  .visita__panel { padding-bottom: var(--sc-3); }
+}
+
+/* Telas muito baixas (celular deitado, zoom de 200%, teclado aberto): o
+   formulário não cabe em uma tela. Em vez de cortar, o palco deixa de ser fixo
+   e cresce com o conteúdo, e a página rola normalmente até o fim. */
+@media (max-height: 560px) {
+  .visita { position: relative; height: auto; min-height: 100svh; overflow: visible; }
+  .visita__panel { align-self: start; }
+  /* sem palco fixo não há progresso para animar o título: ele fica parado.
+     !important porque o motor escreve opacity e transform direto no elemento. */
+  .visita__panel h2 .sc-split__i { opacity: 1 !important; transform: none !important; }
+  .visita__panel > .sc-body { margin-top: var(--sc-3); }
+}
+
+/* celular baixo: não sobra altura para a foto, nem para a descrição junto
+   com o botão do tour (a lista de cômodos logo abaixo diz o mesmo) */
+@media (max-width: 860px) and (max-height: 700px) {
+  .unit__foto { display: none; }
+  /* some da tela, mas continua para leitor de tela */
+  .unit__desc {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+}
+
+/* telas baixas: a foto da unidade cede lugar à planta */
+@media (min-width: 861px) and (max-height: 720px) {
+  .unit__foto img { max-height: 22vh; }
+  .unit__desc { margin-top: var(--sc-3); }
+}
+
+/* --------------------------------------------------------- menos movimento -- */
+@media (prefers-reduced-motion: reduce) {
+  .hero__frame { clip-path: none; }
+  .torre__andar, .unit__rooms li, .unit__tour { transition: none; }
+}

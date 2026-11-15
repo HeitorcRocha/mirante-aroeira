@@ -1,0 +1,257 @@
+/* ============================================================================
+   Mirante Aroeira: página do tour 3D (tour.html).
+
+   As cores e as fontes vêm de site.css (--sc-canvas, --sc-surface, --sc-ink,
+   --sc-ink-soft, --sc-accent, --sc-accent-ink, Outfit e Geist). O motor
+   scrollcraft.css não é carregado nesta página, então os poucos tokens dele
+   que o botão de site.css e este arquivo usam são repetidos aqui, com os
+   mesmos valores.
+   ========================================================================== */
+:root {
+  --sc-hairline:        color-mix(in oklab, var(--sc-ink) 12%, transparent);
+  --sc-hairline-strong: color-mix(in oklab, var(--sc-ink) 22%, transparent);
+  --sc-t-xs:   clamp(0.75rem, 0.72rem + 0.15vw, 0.82rem);
+  --sc-t-sm:   clamp(0.875rem, 0.84rem + 0.18vw, 0.95rem);
+  --sc-t-base: clamp(1rem, 0.96rem + 0.22vw, 1.125rem);
+  --sc-t-lg:   clamp(1.2rem, 1.1rem + 0.5vw, 1.5rem);
+  --sc-track-snug: -0.02em;
+  --sc-1: 0.25rem; --sc-2: 0.5rem; --sc-3: 0.75rem; --sc-4: 1rem; --sc-5: 1.5rem; --sc-6: 2rem;
+  --sc-r-sm: 6px; --sc-r-md: 12px; --sc-r-lg: 20px; --sc-r-pill: 999px;
+  --sc-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --sc-edge: inset 0 1px 0 color-mix(in oklab, var(--sc-ink) 10%, transparent);
+
+  --tap: 2.75rem;          /* 44 px: menor alvo de toque */
+  --panel-w: 21rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body.tour {
+  margin: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+  height: 100dvh; overflow: hidden;
+  background: var(--sc-canvas); color: var(--sc-ink);
+  font-family: var(--sc-font-text); font-size: var(--sc-t-base); line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--sc-accent); outline-offset: 3px; border-radius: var(--sc-r-sm); }
+[hidden] { display: none !important; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+/* ------------------------------------------------------------- cabeçalho -- */
+.tbar {
+  display: flex; align-items: center; gap: var(--sc-4);
+  height: var(--bar-h);
+  padding-inline: max(var(--sc-4), env(safe-area-inset-left)) max(var(--sc-4), env(safe-area-inset-right));
+  border-bottom: 1px solid var(--sc-hairline);
+}
+.tbar__back {
+  display: inline-flex; align-items: center; gap: var(--sc-1);
+  min-height: var(--tap); min-width: var(--tap); padding-right: var(--sc-2);
+  color: var(--sc-ink-soft); font-size: var(--sc-t-sm); text-decoration: none;
+  transition: color 140ms var(--sc-ease-out);
+}
+.tbar__mark {
+  font-family: var(--sc-font-display); font-size: 1.1rem; font-weight: 500;
+  letter-spacing: 0.01em; text-decoration: none;
+  padding-block: 0.6rem; margin-right: auto;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tbar__back:hover { color: var(--sc-ink); }
+}
+
+/* campos: o mesmo desenho do formulário de visita da landing */
+.tour select {
+  min-height: var(--tap); padding: 0 var(--sc-4);
+  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-md);
+  background: color-mix(in oklab, var(--sc-canvas) 82%, transparent);
+  font-size: var(--sc-t-sm); cursor: pointer;
+  transition: border-color 140ms var(--sc-ease-out);
+}
+.tour select option { background: var(--sc-surface); color: var(--sc-ink); }
+.tour select:focus-visible { outline-offset: 2px; border-color: var(--sc-accent); border-radius: var(--sc-r-md); }
+
+/* ---------------------------------------------------------------- layout -- */
+/* O painel nunca fica por cima da cena: no desktop é uma coluna ao lado, no
+   celular é uma faixa embaixo. O canvas ocupa só o espaço que sobra. */
+.tmain {
+  display: grid; grid-template-columns: var(--panel-w) minmax(0, 1fr);
+  min-height: 0;
+}
+.panel { grid-column: 1; grid-row: 1; }
+.scene { grid-column: 2; grid-row: 1; }
+
+/* ------------------------------------------------------------------ cena -- */
+.scene { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.scene canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  touch-action: none; cursor: grab;
+}
+.scene canvas:active { cursor: grabbing; }
+.scene canvas:focus-visible { outline-offset: -4px; border-radius: 0; }
+
+.scene__status {
+  position: absolute; inset: 0; margin: 0;
+  display: grid; place-items: center; padding: var(--sc-5);
+  color: var(--sc-ink-soft); font-size: var(--sc-t-sm); text-align: center;
+  pointer-events: none;
+}
+.scene__fallback {
+  position: absolute; inset: 0; z-index: 2;
+  display: grid; align-content: center; justify-items: start; gap: var(--sc-4);
+  padding: var(--sc-6); max-width: 34rem; margin-inline: auto;
+}
+.scene__fallback h2 { font-family: var(--sc-font-display); font-size: var(--sc-t-lg); font-weight: 400; letter-spacing: var(--sc-track-snug); }
+.scene__fallback p { color: var(--sc-ink-soft); }
+.tlink {
+  display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 1.15rem;
+  border: 1px solid var(--sc-accent); border-radius: var(--sc-r-pill);
+  color: var(--sc-accent); font-size: var(--sc-t-sm); font-weight: 500; text-decoration: none;
+}
+.tlink:focus-visible { border-radius: var(--sc-r-pill); }
+.tlink--wide { display: flex; justify-content: center; margin-top: var(--sc-2); }
+
+.scene__hint {
+  position: absolute; left: var(--sc-4); bottom: var(--sc-4); right: 6.5rem; margin: 0;
+  width: fit-content; max-width: 44ch;
+  padding: var(--sc-2) var(--sc-3);
+  border-radius: var(--sc-r-md);
+  background: color-mix(in oklab, var(--sc-canvas) 70%, transparent);
+  color: var(--sc-ink-soft); font-size: var(--sc-t-xs); line-height: 1.4;
+  pointer-events: none;
+}
+.scene__hint:empty { display: none; }
+
+.compass {
+  position: absolute; right: var(--sc-4); bottom: var(--sc-4);
+  width: 4rem; height: 4rem; pointer-events: none;
+}
+.compass svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.compass__ring { fill: color-mix(in oklab, var(--sc-canvas) 70%, transparent); stroke: var(--sc-hairline-strong); stroke-width: 1; }
+.compass__dial { transform-origin: 32px 32px; transform-box: view-box; }
+.compass__n { fill: var(--sc-accent); }
+.compass__s { fill: color-mix(in oklab, var(--sc-ink) 26%, transparent); }
+.compass__label { fill: var(--sc-accent); font-family: var(--sc-font-text); font-size: 11px; font-weight: 600; }
+
+/* ---------------------------------------------------------------- painel -- */
+.panel {
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--sc-surface);
+  border-right: 1px solid var(--sc-hairline);
+}
+.panel__head { display: grid; gap: var(--sc-4); padding: var(--sc-5) var(--sc-5) var(--sc-4); }
+.panel__title {
+  font-family: var(--sc-font-display); font-size: var(--sc-t-lg); font-weight: 400;
+  letter-spacing: var(--sc-track-snug); line-height: 1.15;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--sc-3);
+}
+.panel__area { color: var(--sc-accent); font-family: var(--sc-font-text); font-size: var(--sc-t-sm); font-weight: 500; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+
+.mode {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px;
+  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-pill);
+}
+.mode button {
+  min-height: var(--tap); padding: 0 var(--sc-4);
+  border: 0; border-radius: var(--sc-r-pill); background: transparent;
+  color: var(--sc-ink-soft); font-size: var(--sc-t-sm); font-weight: 500; cursor: pointer;
+  transition: background-color 160ms var(--sc-ease-out), color 160ms var(--sc-ease-out);
+}
+.mode button[aria-pressed="true"] { background: var(--sc-accent); color: var(--sc-accent-ink); }
+
+.panel__toggle { display: none; }
+
+.panel__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--sc-5) var(--sc-5); }
+.panel__sec { padding-top: var(--sc-4); border-top: 1px solid var(--sc-hairline); }
+.panel__sec + .panel__sec { margin-top: var(--sc-4); }
+.panel__sec h2 { font-size: var(--sc-t-xs); font-weight: 500; color: var(--sc-ink-soft); margin-bottom: var(--sc-2); }
+
+.rooms { list-style: none; margin: 0 calc(var(--sc-3) * -1); padding: 0; }
+.rooms__btn {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sc-3);
+  width: 100%; min-height: var(--tap); padding: 0 var(--sc-3);
+  border: 0; border-radius: var(--sc-r-md); background: transparent;
+  font-size: var(--sc-t-sm); text-align: left; cursor: pointer;
+  transition: background-color 140ms var(--sc-ease-out);
+}
+.rooms__m2 { color: var(--sc-ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rooms__btn[aria-current="true"] { background: color-mix(in oklab, var(--sc-accent) 16%, transparent); }
+.rooms__btn[aria-current="true"] .rooms__name { color: var(--sc-accent); }
+@media (hover: hover) and (pointer: fine) {
+  .rooms__btn:hover { background: color-mix(in oklab, var(--sc-ink) 7%, transparent); }
+  .rooms__btn[aria-current="true"]:hover { background: color-mix(in oklab, var(--sc-accent) 22%, transparent); }
+  .mode button[aria-pressed="false"]:hover { color: var(--sc-ink); }
+}
+
+.sun__row { display: grid; gap: var(--sc-1); margin-top: var(--sc-3); }
+.sun__row label { display: flex; justify-content: space-between; font-size: var(--sc-t-sm); color: var(--sc-ink-soft); }
+.sun__row output { color: var(--sc-ink); font-variant-numeric: tabular-nums; }
+.sun__row select { width: 100%; }
+.sun__row input[type="range"] { width: 100%; height: var(--tap); margin: 0; accent-color: var(--sc-accent); cursor: pointer; background: transparent; }
+.sun__scale { display: flex; justify-content: space-between; margin-top: -0.6rem; font-size: var(--sc-t-xs); color: var(--sc-ink-soft); font-variant-numeric: tabular-nums; }
+.sun__out { margin-top: var(--sc-3); font-size: var(--sc-t-sm); color: var(--sc-ink-soft); text-wrap: pretty; }
+
+.noscript { position: fixed; inset: auto 0 0 0; margin: 0; padding: var(--sc-4); background: var(--sc-surface); text-align: center; }
+
+/* --------------------------------------------------------------- celular -- */
+@media (max-width: 860px) {
+  .tbar { gap: var(--sc-2); }
+  .tbar__mark { display: none; }
+  .tbar__back { margin-right: auto; }
+  .tbar__plan { min-width: 0; }
+  .tbar__plan select { width: 100%; max-width: 9.5rem; padding-inline: var(--sc-3); }
+  .tbar .btn { flex: none; }
+
+  /* cena em cima, painel como faixa embaixo; a gaveta abre para cima e a
+     cena encolhe junto (o canvas acompanha por ResizeObserver) */
+  .tmain { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .scene { grid-column: 1; grid-row: 1; }
+  .panel {
+    grid-column: 1; grid-row: 2;
+    border-right: 0; border-top: 1px solid var(--sc-hairline);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .panel__head {
+    grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+    gap: var(--sc-2) var(--sc-3); padding: var(--sc-3) var(--sc-4);
+  }
+  .panel__title { font-size: var(--sc-t-base); }
+  .mode button { padding: 0 var(--sc-3); }
+  .panel__toggle {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between;
+    min-height: var(--tap); padding: 0 var(--sc-3);
+    border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-md); background: transparent;
+    font-size: var(--sc-t-sm); cursor: pointer;
+  }
+  .panel__toggle svg { transition: transform 200ms var(--sc-ease-out); }
+  .panel__toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .panel__body { display: none; flex: 0 1 auto; max-height: 42svh; padding: 0 var(--sc-4) var(--sc-4); }
+  .panel.is-open .panel__body { display: block; }
+
+  .scene__hint { left: var(--sc-3); bottom: var(--sc-3); right: 4.75rem; }
+  .compass { right: var(--sc-3); bottom: var(--sc-3); width: 3.25rem; height: 3.25rem; }
+}
+
+/* celular estreito: o voltar fica só com a seta (o nome continua no aria-label) */
+@media (max-width: 480px) {
+  .tbar__back span { display: none; }
+  .tbar__back { justify-content: center; padding-right: 0; }
+}
+
+/* celular deitado: pouca altura, a dica sai para a cena respirar */
+@media (max-height: 480px) {
+  .scene__hint { display: none; }
+}
+@media (max-width: 860px) and (max-height: 480px) {
+  .panel__body { max-height: 34svh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour *, .tour *::before, .tour *::after { transition: none !important; }
+}
