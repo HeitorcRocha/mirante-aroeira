@@ -152,17 +152,20 @@ button, input, select { font: inherit; color: inherit; }
 }
 .panel__area { color: var(--sc-accent); font-family: var(--sc-font-text); font-size: var(--sc-t-sm); font-weight: 500; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 
-.mode {
+/* .seg é o mesmo grupo de dois botões do .mode, sem o papel de "modo" (o
+   teclado da cena só vale com o foco no .mode, ver tour.js) */
+.mode, .seg {
   display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px;
   border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-pill);
 }
-.mode button {
+.mode button, .seg button {
   min-height: var(--tap); padding: 0 var(--sc-4);
   border: 0; border-radius: var(--sc-r-pill); background: transparent;
   color: var(--sc-ink-soft); font-size: var(--sc-t-sm); font-weight: 500; cursor: pointer;
   transition: background-color 160ms var(--sc-ease-out), color 160ms var(--sc-ease-out);
 }
-.mode button[aria-pressed="true"] { background: var(--sc-accent); color: var(--sc-accent-ink); }
+.mode button[aria-pressed="true"], .seg button[aria-pressed="true"] { background: var(--sc-accent); color: var(--sc-accent-ink); }
+.seg button:focus-visible { border-radius: var(--sc-r-pill); }
 
 .panel__toggle { display: none; }
 
@@ -182,10 +185,46 @@ button, input, select { font: inherit; color: inherit; }
 .rooms__m2 { color: var(--sc-ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rooms__btn[aria-current="true"] { background: color-mix(in oklab, var(--sc-accent) 16%, transparent); }
 .rooms__btn[aria-current="true"] .rooms__name { color: var(--sc-accent); }
+/* Barra de ambientes: um botão com o ambiente atual que abre a lista logo
+   abaixo, dentro do painel (empurra o resto; não flutua sobre a cena). */
+.roomsbar__btn {
+  display: flex; align-items: center; gap: var(--sc-3);
+  width: 100%; min-height: var(--tap); padding: 0 var(--sc-3);
+  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-md); background: transparent;
+  font-size: var(--sc-t-sm); text-align: left; cursor: pointer;
+  transition: border-color 140ms var(--sc-ease-out);
+}
+.roomsbar__btn .rooms__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roomsbar__btn:focus-visible { border-radius: var(--sc-r-md); }
+.roomsbar__chev { flex: none; color: var(--sc-ink-soft); transition: transform 200ms var(--sc-ease-out); }
+.roomsbar__btn[aria-expanded="true"] .roomsbar__chev { transform: rotate(180deg); }
+.roomsbar .rooms {
+  margin: var(--sc-1) 0 0; padding: var(--sc-1);
+  max-height: 16rem; overflow-y: auto; overscroll-behavior: contain;
+  border: 1px solid var(--sc-hairline); border-radius: var(--sc-r-md);
+}
+
+/* Mini-mapa: a planta vista de cima, no mesmo sentido da vista de topo. O
+   ambiente atual tem cor e também contorno grosso (não depende só da cor). */
+.minimap { margin-bottom: var(--sc-3); }
+.minimap__svg { display: block; width: 100%; height: auto; max-height: 9.5rem; overflow: visible; }
+.minimap__room { fill: color-mix(in oklab, var(--sc-ink) 10%, transparent); cursor: pointer; transition: fill 140ms var(--sc-ease-out); }
+.minimap__room.is-current { fill: color-mix(in oklab, var(--sc-accent) 34%, transparent); }
+.minimap__outlines, .minimap__walls, .minimap__me { pointer-events: none; }
+.minimap__outline { fill: none; stroke: none; stroke-linecap: square; vector-effect: non-scaling-stroke; }
+.minimap__outline.is-current { stroke: var(--sc-accent); stroke-width: 2.5px; }
+.minimap__wall { fill: color-mix(in oklab, var(--sc-ink) 62%, transparent); }
+.minimap__window { fill: color-mix(in oklab, var(--sc-ink) 28%, transparent); }
+.minimap__dot { fill: var(--sc-accent); stroke: var(--sc-surface); stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+.minimap__wedge { fill: color-mix(in oklab, var(--sc-accent) 38%, transparent); }
+
 @media (hover: hover) and (pointer: fine) {
   .rooms__btn:hover { background: color-mix(in oklab, var(--sc-ink) 7%, transparent); }
   .rooms__btn[aria-current="true"]:hover { background: color-mix(in oklab, var(--sc-accent) 22%, transparent); }
-  .mode button[aria-pressed="false"]:hover { color: var(--sc-ink); }
+  .mode button[aria-pressed="false"]:hover, .seg button[aria-pressed="false"]:hover { color: var(--sc-ink); }
+  .roomsbar__btn:hover, .switch:hover { border-color: color-mix(in oklab, var(--sc-ink) 42%, transparent); }
+  .minimap__room:hover { fill: color-mix(in oklab, var(--sc-ink) 17%, transparent); }
+  .minimap__room.is-current:hover { fill: color-mix(in oklab, var(--sc-accent) 42%, transparent); }
 }
 
 .sun__row { display: grid; gap: var(--sc-1); margin-top: var(--sc-3); }
@@ -195,6 +234,32 @@ button, input, select { font: inherit; color: inherit; }
 .sun__row input[type="range"] { width: 100%; height: var(--tap); margin: 0; accent-color: var(--sc-accent); cursor: pointer; background: transparent; }
 .sun__scale { display: flex; justify-content: space-between; margin-top: -0.6rem; font-size: var(--sc-t-xs); color: var(--sc-ink-soft); font-variant-numeric: tabular-nums; }
 .sun__out { margin-top: var(--sc-3); font-size: var(--sc-t-sm); color: var(--sc-ink-soft); text-wrap: pretty; }
+
+/* Interruptor: usado no tour (luzes da casa) e no espelho (disponibilidade) */
+.switch {
+  display: inline-flex; align-items: center; gap: var(--sc-2);
+  min-height: var(--tap); padding: 0 var(--sc-3) 0 var(--sc-2);
+  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-md); background: transparent;
+  font-size: var(--sc-t-sm); cursor: pointer;
+}
+.switch__track {
+  position: relative; width: 2.1rem; height: 1.2rem; border-radius: var(--sc-r-pill);
+  background: color-mix(in oklab, var(--sc-ink) 22%, transparent);
+  transition: background-color 160ms var(--sc-ease-out);
+}
+.switch__track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.2rem - 4px); height: calc(1.2rem - 4px);
+  border-radius: 50%; background: var(--sc-ink);
+  transition: transform 160ms var(--sc-ease-out), background-color 160ms var(--sc-ease-out);
+}
+.switch[aria-pressed="true"] .switch__track { background: var(--sc-accent); }
+.switch[aria-pressed="true"] .switch__track::after { transform: translateX(0.9rem); background: var(--sc-accent-ink); }
+.switch:focus-visible { border-radius: var(--sc-r-md); }
+
+.lights { display: grid; gap: var(--sc-3); margin-top: var(--sc-4); }
+.lights .switch { justify-self: start; }
+.lights__color { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--sc-3); }
+.lights__label { font-size: var(--sc-t-sm); color: var(--sc-ink-soft); }
 
 .noscript { position: fixed; inset: auto 0 0 0; margin: 0; padding: var(--sc-4); background: var(--sc-surface); text-align: center; }
 
@@ -233,6 +298,8 @@ button, input, select { font: inherit; color: inherit; }
   .panel__toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
   .panel__body { display: none; flex: 0 1 auto; max-height: 42svh; padding: 0 var(--sc-4) var(--sc-4); }
   .panel.is-open .panel__body { display: block; }
+  .minimap__svg { max-height: 6.5rem; }
+  .roomsbar .rooms { max-height: 12rem; }
 
   .scene__hint { left: var(--sc-3); bottom: var(--sc-3); right: 4.75rem; }
   .compass { right: var(--sc-3); bottom: var(--sc-3); width: 3.25rem; height: 3.25rem; }

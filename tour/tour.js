@@ -14,7 +14,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { plans, fmtArea } from "../data/plans.js";
-import { buildModel, collides, slideMove, findPath, pathLength, roomAt, DIM } from "./geometry.js";
+import { buildModel, collides, slideMove, findPath, pathLength, roomAt, lightSpots, DIM } from "./geometry.js";
+import { minimapSvg, viewWedge, topDownPose } from "./minimap.js";
 import { sunPosition, sunDirection } from "./sun.js";
 // contas e textos que o espelho de vendas (espelho.js) também usa
 import {
@@ -29,6 +30,9 @@ const ui = {
   panel: $("t-panel"), title: $("t-title"), area: $("t-area"), plan: $("t-planta"),
   maquete: $("t-mode-maquete"), caminhar: $("t-mode-caminhar"),
   drawer: $("t-drawer"), rooms: $("t-rooms"),
+  roomsbar: $("t-roomsbar"), roomsBtn: $("t-rooms-btn"), roomsName: $("t-rooms-name"), roomsM2: $("t-rooms-m2"),
+  minimap: $("t-minimap"),
+  lights: $("t-lights"), lightBranca: $("t-light-branca"), lightAmarela: $("t-light-amarela"),
   hour: $("t-hour"), month: $("t-month"), hourOut: $("t-hour-out"), sunOut: $("t-sun-out"),
   espelho: $("t-espelho"),
 };
@@ -36,13 +40,21 @@ const ui = {
 const BRAND = "Mirante Aroeira";
 const MAQUETE = "maquete", CAMINHAR = "caminhar";
 const FOV = { [MAQUETE]: 40, [CAMINHAR]: 68 };
+// Luzes da casa: amarela ~2700 K, branca ~4500 K. LAMP_POWER em candela (o
+// three usa unidades físicas): ajustado para ler bem à noite e quase não
+// aparecer ao meio-dia.
+const LAMP_COLORS = { amarela: 0xffc58a, branca: 0xf4f1ff };
+const LAMP_POWER = 5.5;
 
 /* ------------------------------------------------------------- estado -- */
 const state = {
   plan: null, model: null, world: null,
   mode: MAQUETE,
   hour: 10, month: 6,
+  lights: false,          // luzes da casa acesas?
+  lightColor: "amarela",  // "amarela" ou "branca", vale para a casa toda
   focus: -1,              // ambiente escolhido na maquete
+  topRoom: -1,            // ambiente em vista de topo, enquanto o visitante não mexer na câmera
   current: -2,            // ambiente destacado na lista (-2 força a 1ª pintura)
   userMoved: false,       // o visitante já mexeu na câmera da maquete?
   orbit: null,            // pose da maquete guardada ao entrar no caminhar
@@ -145,6 +157,7 @@ function start() {
 
     paintCompass();
     paintCurrentRoom();
+    paintMe();
     renderer.render(scene, camera);
 
     wasBusy = busy;
@@ -378,10 +391,40 @@ function start() {
     ceiling.visible = false;
     group.add(ceiling);
 
+    /* luzes da casa: um ponto de luz por trecho de ambiente (lightSpots), sem
+       sombra. Ficam sempre na cena e acendem pela intensidade: ligar e desligar
+       .visible muda o número de luzes e obriga o three a recompilar os shaders,
+       o que travaria a tela a cada clique no interruptor. */
+    const spots = lightSpots(model);
+    const lamps = spots.map((s) => {
+      // alcance: o tamanho do trecho mais a altura até o piso; além disso a luz
+      // zera, para não acender o cômodo do lado
+      const reach = Math.max(4.5, 0.5 * Math.hypot(s.w, s.h) + 3.2);
+      const light = new THREE.PointLight(0xffffff, 0, reach, 2);
+      light.position.set(s.x, model.height - 0.5, s.y);
+      light.userData.power = LAMP_POWER * clamp(Math.sqrt(s.w * s.h / 9), 0.75, 1.35);   // cômodo maior, lâmpada mais forte
+      group.add(light);
+      return light;
+    });
+    // As luminárias (discos rentes ao teto) só aparecem com o teto, no caminhar.
+    // Um único InstancedMesh: acender muda só o emissivo do material.
+    const fixtureMat = std(0xf6f3ee, { roughness: 0.4, emissive: 0x000000, emissiveIntensity: 0 });
+    const fixtures = new THREE.InstancedMesh(shapes.cyl, fixtureMat, Math.max(1, spots.length));
+    fixtures.count = spots.length;
+    spots.forEach((s, i) => fixtures.setMatrixAt(i, new THREE.Matrix4().compose(
+      new THREE.Vector3(s.x, model.height - 0.02, s.y), I, new THREE.Vector3(0.34, 0.04, 0.34))));
+    fixtures.instanceMatrix.needsUpdate = true;
+    fixtures.computeBoundingSphere();
+    fixtures.visible = false;
+    group.add(fixtures);
+    trash.push(fixtures);
+
     const center = new THREE.Vector3((B.x0 + B.x1) / 2, 0, (B.y0 + B.y1) / 2);
     const radius = 0.5 * Math.hypot(B.x1 - B.x0, B.y1 - B.y0, model.height);
     return {
-      group, ceiling, center, radius,
+      group, ceiling, center, radius, lamps, fixtures, fixtureMat,
+      /** Teto e luminárias aparecem e somem juntos. */
+      setCeiling(v) { ceiling.visible = v; fixtures.visible = v; },
       tall: model.colliders.filter((c) => c.tall),   // o que tapa a visão na altura dos olhos
       dispose() {
         scene.remove(group);
@@ -403,6 +446,7 @@ function start() {
     state.world = buildWorld(state.model);
     scene.add(state.world.group);
     state.focus = -1;
+    state.topRoom = -1;
     state.current = -2;
     state.userMoved = false;
     state.orbit = null;
@@ -421,8 +465,11 @@ function start() {
       history.replaceState(null, "", url);
     }
     paintRoomList();
+    paintMinimap();
+    setRoomsOpen(false);
 
     applyMode(MAQUETE);
+    applyLights();
     resize();
     home(true);
     updateSun();
@@ -447,7 +494,9 @@ function start() {
   function setOrbitLimits() {
     const { dist } = homePose();
     controls.minDistance = 2.5;
-    controls.maxDistance = dist * 1.5;
+    // a vista de topo do maior ambiente, em tela estreita, também tem de caber
+    const top = Math.max(0, ...state.model.rooms.map((r) => topPose(r).height));
+    controls.maxDistance = Math.max(dist * 1.5, top * 1.05);
     controls.cursor.copy(state.world.center);      // o alvo não se afasta do apartamento
     controls.maxTargetRadius = state.world.radius;
   }
@@ -485,24 +534,32 @@ function start() {
     const { pos, target } = homePose();
     state.focus = -1;
     state.userMoved = false;
+    state.topRoom = -1;
     flyOrbit(pos, target, instant ? 0 : 700);
   }
 
-  // Centraliza e aproxima a maquete num ambiente, mantendo o ângulo atual.
+  // Vista de topo de um ambiente: câmera bem acima do centro, olhando reto
+  // para baixo, com o alto da planta no alto da tela (a conta está em
+  // minimap.js). O enquadramento é feito no topo das paredes, que ficam mais
+  // perto da câmera que o piso. Devolve a pose já em vetores da cena.
+  function topPose(room) {
+    const p = topDownPose(room.bbox, FOV[MAQUETE], camera.aspect, { margin: 1.25, top: DIM.ceiling });
+    const target = new THREE.Vector3(...p.target);
+    const pos = new THREE.Vector3(...p.pos);
+    // respeita a distância mínima do OrbitControls (a máxima já é calculada
+    // para caber, em setOrbitLimits); fora dela o controle "pularia" no 1º toque
+    const d = Math.max(p.height, controls.minDistance);
+    pos.sub(target).setLength(d).add(target);
+    return { pos, target, height: p.height };
+  }
+
+  // Escolher um ambiente na maquete leva sempre à vista de topo dele.
   function focusRoom(room) {
-    const b = room.bbox;
-    const target = new THREE.Vector3((b.x0 + b.x1) / 2, 0, (b.y0 + b.y1) / 2);
-    const r = 0.5 * Math.hypot(b.x1 - b.x0, b.y1 - b.y0, DIM.ceiling);
-    const vfov = THREE.MathUtils.degToRad(FOV[MAQUETE]) / 2;
-    const hfov = Math.atan(Math.tan(vfov) * camera.aspect);
-    const dist = clamp((r / Math.sin(Math.min(vfov, hfov))) * 1.5, controls.minDistance + 1, controls.maxDistance);
-    const dir = camera.position.clone().sub(controls.target);
-    const s = new THREE.Spherical().setFromVector3(dir);
-    s.phi = clamp(s.phi, 0.35, 0.95);              // nem de topo, nem rasante
-    s.radius = dist;
+    const { pos, target } = topPose(room);
     state.focus = room.index;
     state.userMoved = true;
-    flyOrbit(new THREE.Vector3().setFromSpherical(s).add(target), target, 700);
+    state.topRoom = room.index;
+    flyOrbit(pos, target, 700);
   }
 
   // Teclado na maquete: setas giram, + e - aproximam.
@@ -515,11 +572,14 @@ function start() {
     camera.lookAt(controls.target);
     controls.update();
     state.userMoved = true;
+    state.topRoom = -1;
     invalidate();
   }
 
   controls.addEventListener("change", invalidate);
-  controls.addEventListener("start", () => { state.userMoved = true; });
+  // topRoom: ambiente cuja vista de topo está na tela sem o visitante ter
+  // mexido depois. Enquanto vale, resize() refaz o enquadramento.
+  controls.addEventListener("start", () => { state.userMoved = true; state.topRoom = -1; });
 
   /* ----------------------------------------------------------- caminhar -- */
   let flying = false;                              // em transição entre os modos
@@ -572,6 +632,17 @@ function start() {
     const path = reduceMotion.matches ? null : findPath(state.model, [w.x, w.y], [x, y]);
     if (path && path.length > 1) followPath(path, true);
     else teleport(x, y, yawForRoom(room, x, y));    // corte seco
+  }
+
+  // Clique no mini-mapa: anda até o ponto. Se ali não dá para ficar (móvel,
+  // parede) ou não há caminho, vai para o ponto de visita do ambiente.
+  function walkToPoint(x, y, room) {
+    const w = state.walk;
+    if (roomAt(state.model, x, y) !== room.index || collides(state.model.colliders, x, y)) { walkToRoom(room); return; }
+    const path = findPath(state.model, [w.x, w.y], [x, y]);
+    if (!path || path.length < 2) { walkToRoom(room); return; }
+    if (reduceMotion.matches) { const end = path[path.length - 1]; teleport(end[0], end[1]); }
+    else followPath(path, true);
   }
 
   // Toque ou clique no piso: anda até o ponto, se ele estiver à vista.
@@ -655,7 +726,7 @@ function start() {
     controls.enabled = !walking;
     camera.fov = FOV[mode];
     camera.updateProjectionMatrix();
-    if (state.world) state.world.ceiling.visible = walking;
+    if (state.world) state.world.setCeiling(walking);
     marker.visible = false;
     paintHint();
     ui.canvas.setAttribute("aria-label", walking
@@ -682,7 +753,7 @@ function start() {
       poseWalk();
       const to = { pos: camera.position.clone(), quat: camera.quaternion.clone() };
       // durante o voo de entrada o teto fica fora, para a câmera não o atravessar
-      world.ceiling.visible = false;
+      world.setCeiling(false);
       flying = true;
       tween(950, (k) => {
         camera.position.lerpVectors(from.pos, to.pos, k);
@@ -691,7 +762,7 @@ function start() {
         camera.updateProjectionMatrix();
       }, () => {
         flying = false;
-        world.ceiling.visible = true;
+        world.setCeiling(true);
         poseWalk();
         updateSun();
       });
@@ -710,9 +781,12 @@ function start() {
         camera.updateProjectionMatrix();
       }, () => {
         flying = false;
-        controls.target.copy(pose.target);
-        camera.position.copy(pose.pos);
-        camera.lookAt(pose.target);
+        // se a tela mudou de proporção durante o voo, a vista de topo calculada
+        // na partida já não enquadra o ambiente: refaz a conta na chegada
+        const end = state.topRoom >= 0 ? topPose(state.model.rooms[state.topRoom]) : pose;
+        controls.target.copy(end.target);
+        camera.position.copy(end.pos);
+        camera.lookAt(end.target);
         controls.enabled = true;
         controls.update();
       });
@@ -741,13 +815,13 @@ function start() {
     cam.near = 0.1; cam.far = world.radius * 5;
     cam.updateProjectionMatrix();
 
-    // Luz difusa: nunca deixa a cena preta. À noite ela sobe um pouco e esfria,
-    // como se as luzes de dentro estivessem acesas. Com teto (caminhar) o
-    // interior depende mais dela, então é mais forte.
+    // Luz difusa: à noite cai e esfria, mas nunca deixa a cena preta. Quem
+    // ilumina a casa à noite são as luzes da casa (applyLights), não ela. Com
+    // teto (caminhar) o interior depende mais dela, então é mais forte.
     hemi.color.lerpColors(HEMI_NIGHT, HEMI_DAY, day);
-    hemi.intensity = lerp(walking ? 1.5 : 1.15, walking ? 2.5 : 1.55, day);
-    fillA.intensity = lerp(0.35, 0.6, day);
-    fillB.intensity = lerp(0.2, 0.32, day);
+    hemi.intensity = lerp(walking ? 0.55 : 0.6, walking ? 2.5 : 1.55, day);
+    fillA.intensity = lerp(0.16, 0.6, day);
+    fillB.intensity = lerp(0.1, 0.32, day);
 
     // Céu só no modo caminhar; a maquete fica sobre o fundo escuro do site.
     if (walking) {
@@ -796,8 +870,10 @@ function start() {
       now = roomAt(state.model, state.walk.x, state.walk.y);
       if (now < 0) now = -3;                        // entre cômodos: nada destacado
     } else if (state.focus >= 0) {
-      // o destaque dura enquanto o alvo da maquete continuar dentro do ambiente
-      if (!flying && tweens.size === 0 && roomAt(state.model, controls.target.x, controls.target.z) !== state.focus) state.focus = -1;
+      // o destaque dura enquanto o alvo da maquete continuar dentro do ambiente.
+      // Em vista de topo (topRoom) ele vale sempre: o centro de um ambiente em
+      // "L" pode cair fora dos retângulos dele.
+      if (state.topRoom !== state.focus && !flying && tweens.size === 0 && roomAt(state.model, controls.target.x, controls.target.z) !== state.focus) state.focus = -1;
       now = state.focus;
     }
     if (now === state.current) return;
@@ -806,6 +882,125 @@ function start() {
       if (Number(b.dataset.room) === now) b.setAttribute("aria-current", "true");
       else b.removeAttribute("aria-current");
     }
+    for (const el of ui.minimap.querySelectorAll("[data-room]")) el.classList.toggle("is-current", Number(el.dataset.room) === now);
+    // Entre um cômodo e outro (vão de porta) o botão mantém o último nome:
+    // trocar para "nenhum" a cada porta atravessada só faria o texto piscar.
+    if (now !== -3) paintRoomsLabel(now);
+  }
+
+  function paintRoomsLabel(index) {
+    const room = state.model.rooms[index];
+    ui.roomsName.textContent = room ? room.full : "Apartamento inteiro";
+    ui.roomsM2.textContent = fmtArea(room ? room.area : state.plan.area);
+    const svg = ui.minimap.firstElementChild;
+    if (svg) svg.setAttribute("aria-label", `Mini-mapa do apartamento ${state.plan.title}. ${room ? `Ambiente atual: ${room.full}.` : "Apartamento inteiro."}`);
+  }
+
+  /* ------------------------------------------------ barra de ambientes -- */
+  // Padrão "disclosure": o botão mostra o ambiente atual e abre a lista logo
+  // abaixo. Escolher um item, Esc ou clicar fora fecha.
+
+  function setRoomsOpen(open, { focus = false } = {}) {
+    ui.rooms.hidden = !open;
+    ui.roomsBtn.setAttribute("aria-expanded", String(open));
+    if (open) {
+      // abre com o ambiente atual à vista (a lista rola dentro do painel)
+      const cur = ui.rooms.querySelector('[aria-current="true"]');
+      if (cur) cur.scrollIntoView({ block: "nearest" });
+    }
+    if (focus) ui.roomsBtn.focus();
+  }
+
+  ui.roomsBtn.addEventListener("click", () => setRoomsOpen(ui.rooms.hidden));
+  ui.roomsbar.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape" || ui.rooms.hidden) return;
+    ev.preventDefault();
+    setRoomsOpen(false, { focus: true });
+  });
+  document.addEventListener("pointerdown", (ev) => {
+    if (!ui.rooms.hidden && !ui.roomsbar.contains(ev.target)) setRoomsOpen(false);
+  });
+
+  /* ------------------------------------------------------------ mini-mapa -- */
+
+  let me = null, lastMe = null;                    // marcador do visitante no mapa
+
+  // Remonta o SVG (a cada planta) e cria o marcador, escondido.
+  function paintMinimap() {
+    ui.minimap.innerHTML = minimapSvg(state.model);
+    const g = ui.minimap.querySelector(".minimap__me");
+    const NS = "http://www.w3.org/2000/svg";
+    const wedge = document.createElementNS(NS, "path");
+    wedge.setAttribute("class", "minimap__wedge");
+    const dot = document.createElementNS(NS, "circle");
+    dot.setAttribute("class", "minimap__dot");
+    dot.setAttribute("r", "0.22");
+    g.append(wedge, dot);
+    g.style.display = "none";
+    me = { g, wedge, dot };
+    lastMe = null;
+  }
+
+  // Posição e direção do visitante no mapa. Roda a cada quadro desenhado, mas
+  // só mexe no DOM quando a mudança aparece (5 cm ou 2°). Sem laço próprio.
+  function paintMe() {
+    if (!me) return;
+    if (state.mode !== CAMINHAR) {
+      if (lastMe) { me.g.style.display = "none"; lastMe = null; }
+      return;
+    }
+    const { x, y, yaw } = state.walk;
+    if (lastMe && Math.hypot(x - lastMe.x, y - lastMe.y) < 0.05 && Math.abs(angleDelta(yaw, lastMe.yaw)) < 0.035) return;
+    lastMe = { x, y, yaw };
+    me.g.style.display = "";
+    me.dot.setAttribute("cx", x.toFixed(3));
+    me.dot.setAttribute("cy", y.toFixed(3));
+    me.wedge.setAttribute("d", viewWedge(x, y, yaw));
+  }
+
+  // Clique no mapa -> ponto da planta, pela matriz do próprio SVG (o viewBox
+  // está em metros da planta).
+  function minimapPoint(ev) {
+    const svg = ui.minimap.firstElementChild;
+    const ctm = svg && svg.getScreenCTM();
+    if (!ctm) return null;
+    const p = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(ctm.inverse());
+    return [p.x, p.y];
+  }
+
+  ui.minimap.addEventListener("click", (ev) => {
+    if (flying) return;
+    const pt = minimapPoint(ev);
+    if (!pt) return;
+    let index = roomAt(state.model, pt[0], pt[1]);
+    const hit = ev.target.closest("[data-room]");
+    if (index < 0 && hit) index = Number(hit.dataset.room);
+    if (index < 0) return;
+    const room = state.model.rooms[index];
+    if (state.mode === CAMINHAR) walkToPoint(pt[0], pt[1], room);
+    else focusRoom(room);
+  });
+
+  /* ------------------------------------------------------ luzes da casa -- */
+
+  function applyLights() {
+    const world = state.world;
+    const color = LAMP_COLORS[state.lightColor] ?? LAMP_COLORS.amarela;
+    for (const lamp of world.lamps) {
+      lamp.color.set(color);
+      lamp.intensity = state.lights ? lamp.userData.power : 0;
+    }
+    world.fixtureMat.emissive.set(color);
+    world.fixtureMat.emissiveIntensity = state.lights ? 1.6 : 0;
+    ui.lights.setAttribute("aria-pressed", String(state.lights));
+    ui.lightBranca.setAttribute("aria-pressed", String(state.lightColor === "branca"));
+    ui.lightAmarela.setAttribute("aria-pressed", String(state.lightColor === "amarela"));
+    invalidate();
+  }
+
+  ui.lights.addEventListener("click", () => { state.lights = !state.lights; applyLights(); });
+  for (const b of [ui.lightBranca, ui.lightAmarela]) {
+    b.addEventListener("click", () => { state.lightColor = b.dataset.color; applyLights(); });
   }
 
   function paintHint() {
@@ -829,15 +1024,22 @@ function start() {
   ui.rooms.addEventListener("click", (ev) => {
     const b = ev.target.closest("button[data-room]");
     if (!b || flying) return;
+    setRoomsOpen(false, { focus: true });
     const index = Number(b.dataset.room);
     if (index < 0) {                                // apartamento inteiro
-      if (state.mode === CAMINHAR) { state.orbit = null; state.focus = -1; setMode(MAQUETE); }
+      if (state.mode === CAMINHAR) { state.orbit = null; state.focus = -1; state.topRoom = -1; setMode(MAQUETE); }
       else home(false);
       return;
     }
     const room = state.model.rooms[index];
-    if (state.mode === CAMINHAR) walkToRoom(room);
-    else focusRoom(room);
+    if (state.mode === CAMINHAR) {
+      // sai do caminhar subindo direto para a vista de topo do ambiente
+      state.orbit = topPose(room);
+      state.focus = room.index;
+      state.userMoved = true;
+      state.topRoom = room.index;
+      setMode(MAQUETE);
+    } else focusRoom(room);
   });
 
   ui.maquete.addEventListener("click", () => setMode(MAQUETE));
@@ -855,6 +1057,7 @@ function start() {
   ui.drawer.addEventListener("click", () => {
     const open = ui.panel.classList.toggle("is-open");
     ui.drawer.setAttribute("aria-expanded", String(open));
+    if (!open) setRoomsOpen(false);                 // a lista não fica aberta dentro da gaveta fechada
   });
 
   coarsePointer.addEventListener("change", paintHint);
@@ -931,6 +1134,18 @@ function start() {
     setOrbitLimits();
     // enquanto o visitante não mexeu, a maquete se reenquadra sozinha
     if (state.mode === MAQUETE && !state.userMoved && !flying) home(true);
+    // a vista de topo depende da proporção da tela: girar o celular com um
+    // ambiente escolhido refaz o enquadramento, senão ele ficaria cortado
+    const top = state.topRoom >= 0 ? state.model.rooms[state.topRoom] : null;
+    if (top && state.mode === MAQUETE && !flying) {
+      const { pos, target } = topPose(top);
+      // No celular, fechar a lista muda a altura da cena logo depois do clique:
+      // com um voo em curso, ele recomeça para o novo destino em vez de ser
+      // cortado (um corte seco aqui esconderia a animação sempre).
+      flyOrbit(pos, target, orbitFlight ? 700 : 0);
+    } else if (top && state.mode === CAMINHAR) {
+      state.orbit = topPose(top);                   // pose para quando voltar à maquete
+    }
     invalidate();
   }
   new ResizeObserver(resize).observe(ui.scene);
@@ -948,6 +1163,12 @@ function start() {
     get room() { return state.current; },
     get position() { return state.mode === CAMINHAR ? [state.walk.x, state.walk.y] : null; },
     get busy() { return flying || tweens.size > 0 || !!state.walk.path; },
+    // câmera da cena (X = x da planta, Z = y da planta) e alvo da maquete
+    get camera() {
+      const v = (p) => [p.x, p.y, p.z].map((n) => Math.round(n * 1000) / 1000);
+      return { pos: v(camera.position), target: v(controls.target), dir: v(camera.getWorldDirection(new THREE.Vector3())) };
+    },
+    get lights() { return { on: state.lights, color: state.lightColor, count: state.world.lamps.length }; },
   };
   document.body.classList.add("is-ready");
 }

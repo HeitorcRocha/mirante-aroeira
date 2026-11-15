@@ -482,6 +482,34 @@ export function findPath(model, from, to) {
   return out;
 }
 
+/**
+ * Onde ficam as luzes da casa: um ponto de luz no centro de cada trecho de
+ * ambiente, e dois quando o trecho é comprido (sala, varanda), para a luz não
+ * ficar forte no meio e fraca nas pontas. Trecho pequeno de um ambiente que
+ * já tem luz (o recuo do "L" do studio) não ganha a sua.
+ * @returns {{ x: number, y: number, room: number, w: number, h: number }[]}
+ *          w e h são o tamanho da parte do trecho que cada ponto ilumina
+ */
+export function lightSpots(model) {
+  const out = [];
+  for (const room of model.rooms) {
+    const big = room.rects.reduce((m, q) => ((q.x1 - q.x0) * (q.y1 - q.y0) > (m.x1 - m.x0) * (m.y1 - m.y0) ? q : m), room.rects[0]);
+    for (const q of room.rects) {
+      const w = q.x1 - q.x0, h = q.y1 - q.y0;
+      if (q !== big && w * h < 6) continue;
+      const along = w >= h ? "x" : "y";
+      const n = Math.max(1, Math.round(Math.max(w, h) / 4.5));
+      for (let k = 0; k < n; k++) {
+        const t = (k + 0.5) / n;
+        out.push(along === "x"
+          ? { x: q.x0 + w * t, y: (q.y0 + q.y1) / 2, room: room.index, w: w / n, h }
+          : { x: (q.x0 + q.x1) / 2, y: q.y0 + h * t, room: room.index, w, h: h / n });
+      }
+    }
+  }
+  return out;
+}
+
 /** Comprimento de um caminho devolvido por findPath. */
 export function pathLength(path) {
   let s = 0;

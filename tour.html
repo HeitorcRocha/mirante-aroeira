@@ -77,7 +77,7 @@
         <button type="button" id="t-mode-caminhar" aria-pressed="false">Caminhar</button>
       </div>
       <button type="button" class="panel__toggle" id="t-drawer" aria-expanded="false" aria-controls="t-drawer-body">
-        <span>Ambientes e sol</span>
+        <span>Ambientes e luz</span>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 14.5 12 8.5l6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
@@ -85,11 +85,22 @@
     <div class="panel__body" id="t-drawer-body">
       <section class="panel__sec" aria-labelledby="t-rooms-h">
         <h2 id="t-rooms-h">Ambientes</h2>
-        <ul class="rooms" id="t-rooms"></ul>
+        <!-- Mini-mapa: só para ponteiro. Pelo teclado, a lista logo abaixo faz
+             as mesmas coisas. O SVG é montado por tour.js a cada planta. -->
+        <div class="minimap" id="t-minimap"></div>
+        <div class="roomsbar" id="t-roomsbar">
+          <button type="button" class="roomsbar__btn" id="t-rooms-btn" aria-expanded="false" aria-controls="t-rooms">
+            <span class="sr-only">Ambiente: </span>
+            <span class="rooms__name" id="t-rooms-name">Apartamento inteiro</span>
+            <span class="rooms__m2" id="t-rooms-m2"></span>
+            <svg class="roomsbar__chev" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9.5 12 15.5l6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <ul class="rooms" id="t-rooms" hidden></ul>
+        </div>
       </section>
 
       <section class="panel__sec sun" aria-labelledby="t-sun-h">
-        <h2 id="t-sun-h">Sol</h2>
+        <h2 id="t-sun-h">Luz</h2>
         <div class="sun__row">
           <label for="t-hour">Hora <output id="t-hour-out" for="t-hour" aria-live="off"></output></label>
           <input type="range" id="t-hour" min="5" max="19" step="0.5" value="10">
@@ -101,6 +112,21 @@
         </div>
         <!-- sem aria-live: quem fala a cada passo do slider é o aria-valuetext dele -->
         <p class="sun__out" id="t-sun-out"></p>
+        <!-- A cor fica sempre disponível: escolhida com as luzes apagadas, vale
+             quando elas acenderem. -->
+        <div class="lights">
+          <button type="button" class="switch" id="t-lights" aria-pressed="false">
+            <span class="switch__track" aria-hidden="true"></span>
+            <span>Luzes da casa</span>
+          </button>
+          <div class="lights__color">
+            <span class="lights__label" id="t-light-color-h">Cor da luz</span>
+            <div class="seg" role="group" aria-labelledby="t-light-color-h">
+              <button type="button" id="t-light-branca" data-color="branca" aria-pressed="false">Branca</button>
+              <button type="button" id="t-light-amarela" data-color="amarela" aria-pressed="true">Amarela</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="panel__sec" aria-labelledby="t-torre-h">

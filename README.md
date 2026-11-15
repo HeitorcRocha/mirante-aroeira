@@ -54,10 +54,24 @@ apartamento é montado por código a partir de `data/plans.js`, em dois modos:
 maquete (de cima, sem teto) e caminhar (por dentro, com teto), com lista de
 ambientes e controle de hora e mês para o sol.
 
+No painel ficam:
+
+- um mini-mapa da planta, com o ambiente atual destacado e, no caminhar, a
+  posição e a direção do olhar do visitante. Clicar num ambiente do mapa faz o
+  mesmo que a lista na maquete; no caminhar, anda até o ponto clicado;
+- a barra de ambientes: um botão com o ambiente atual que abre a lista.
+  Escolher um ambiente leva sempre à vista de topo dele (câmera reta para
+  baixo, com o alto da planta no alto da tela), inclusive saindo do caminhar.
+  "Apartamento inteiro" volta à vista inicial;
+- o controle de luz: hora e mês do sol, e as luzes da casa (liga e desliga,
+  cor branca ou amarela). É um ponto de luz por ambiente, dois nos ambientes
+  compridos (`lightSpots` em `tour/geometry.js`), sem sombra.
+
 | Arquivo | O que é |
 |---|---|
 | `tour.html`, `tour.css` | A página e o layout. Usa as cores e fontes de `site.css`; não carrega o motor de scroll |
-| `tour/geometry.js` | Planta -> paredes, janelas, portas, móveis, colisão e caminhos. Sem three.js, roda no Node |
+| `tour/geometry.js` | Planta -> paredes, janelas, portas, móveis, colisão, caminhos e pontos de luz. Sem three.js, roda no Node |
+| `tour/minimap.js` | O SVG do mini-mapa e a conta da vista de topo de um ambiente. Sem three.js, roda no Node |
 | `tour/sun.js` | Posição do sol por mês e hora (latitude -23,5°). Sem three.js |
 | `tour/tour.js` | A cena em three.js, a câmera e os controles |
 | `vendor/three/` | three.js copiado de `node_modules`, carregado pelo import map de `tour.html` |
@@ -110,7 +124,7 @@ própria página avisa isso. Nenhuma unidade está à venda.
 
 | Arquivo | O que é |
 |---|---|
-| `espelho.html`, `espelho.css` | A página e o que é só dela. A casca (barra, cena, painel, gaveta no celular) vem de `tour.css` |
+| `espelho.html`, `espelho.css` | A página e o que é só dela. A casca (barra, cena, painel, gaveta no celular, interruptor `.switch`) vem de `tour.css` |
 | `data/tower.js` | A torre: andares, laje, norte, e cada unidade com posição, fachada e status. O comentário no topo explica como a laje foi resolvida |
 | `tour/tower.js` | Torre -> lajes, volumes das unidades, varandas, vidros, brises, térreo, cobertura e entorno; orientação, sol na fachada, contagem e validação. Sem three.js, roda no Node |
 | `tour/espelho.js` | A cena em three.js, a câmera, a grade e a ficha |

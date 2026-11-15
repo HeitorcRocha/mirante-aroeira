@@ -122,13 +122,13 @@ test("módulos JS: todo import (relativo ou via import map) resolve para arquivo
       fila.push(alvo);
     }
   }
-  for (const f of ["tour/tour.js", "tour/geometry.js", "tour/sun.js", "data/plans.js", "vendor/three/build/three.module.js", "vendor/three/build/three.core.js", "vendor/three/examples/jsm/controls/OrbitControls.js"]) {
+  for (const f of ["tour/tour.js", "tour/geometry.js", "tour/sun.js", "tour/minimap.js", "data/plans.js", "vendor/three/build/three.module.js", "vendor/three/build/three.core.js", "vendor/three/examples/jsm/controls/OrbitControls.js"]) {
     assert.ok(visitados.has(f), `não visitou ${f}`);
   }
 });
 
-test("módulos puros (data/plans.js, tour/geometry.js, tour/sun.js) não importam three nem node:", () => {
-  for (const f of ["data/plans.js", "tour/geometry.js", "tour/sun.js"]) {
+test("módulos puros (data/plans.js, tour/geometry.js, tour/sun.js, tour/minimap.js) não importam three nem node:", () => {
+  for (const f of ["data/plans.js", "tour/geometry.js", "tour/sun.js", "tour/minimap.js"]) {
     for (const s of specs(read(f))) {
       assert.ok(!/^node:|^three/.test(s), `${f} importa "${s}"`);
     }

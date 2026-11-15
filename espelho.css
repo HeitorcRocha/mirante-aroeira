@@ -83,25 +83,7 @@
 .mirror__tools { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sc-2); align-items: center; }
 .mirror__tipo select { width: 100%; padding-inline: var(--sc-3); }
 
-.switch {
-  display: inline-flex; align-items: center; gap: var(--sc-2);
-  min-height: var(--tap); padding: 0 var(--sc-3) 0 var(--sc-2);
-  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-md); background: transparent;
-  font-size: var(--sc-t-sm); cursor: pointer;
-}
-.switch__track {
-  position: relative; width: 2.1rem; height: 1.2rem; border-radius: var(--sc-r-pill);
-  background: color-mix(in oklab, var(--sc-ink) 22%, transparent);
-  transition: background-color 160ms var(--sc-ease-out);
-}
-.switch__track::after {
-  content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.2rem - 4px); height: calc(1.2rem - 4px);
-  border-radius: 50%; background: var(--sc-ink);
-  transition: transform 160ms var(--sc-ease-out), background-color 160ms var(--sc-ease-out);
-}
-.switch[aria-pressed="true"] .switch__track { background: var(--sc-accent); }
-.switch[aria-pressed="true"] .switch__track::after { transform: translateX(0.9rem); background: var(--sc-accent-ink); }
-.switch:focus-visible { border-radius: var(--sc-r-md); }
+/* o interruptor (.switch) vem de tour.css: o tour usa o mesmo nas luzes da casa */
 
 .legend {
   list-style: none; margin: var(--sc-3) 0 0; padding: 0;
@@ -166,7 +148,6 @@
   .cell { min-height: 2.15rem; }
   .cell:hover { border-color: var(--sc-ink); }
   .views button[aria-pressed="false"]:hover { color: var(--sc-ink); }
-  .switch:hover { border-color: color-mix(in oklab, var(--sc-ink) 42%, transparent); }
 }
 .mirror__aviso { margin-top: var(--sc-3); font-size: var(--sc-t-xs); color: var(--sc-ink-soft); text-wrap: pretty; }
 
