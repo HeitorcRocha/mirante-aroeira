@@ -127,8 +127,21 @@ própria página avisa isso. Nenhuma unidade está à venda.
 | `espelho.html`, `espelho.css` | A página e o que é só dela. A casca (barra, cena, painel, gaveta no celular, interruptor `.switch`) vem de `tour.css` |
 | `data/tower.js` | A torre: andares, laje, norte, e cada unidade com posição, fachada e status. O comentário no topo explica como a laje foi resolvida |
 | `tour/tower.js` | Torre -> lajes, volumes das unidades, varandas, vidros, brises, térreo, cobertura e entorno; orientação, sol na fachada, contagem e validação. Sem three.js, roda no Node |
-| `tour/espelho.js` | A cena em three.js, a câmera, a grade e a ficha |
+| `tour/espelho.js` | A cena em three.js, a câmera, a grade, a ficha e o modo "vista da varanda" |
+| `tour/city.js` | A cidade fictícia em volta da torre: caixas, luzes da noite, morros, ruas e parque, sorteados com semente fixa. Sem three.js, roda no Node |
+| `tour/vista.js` | O desenho da cidade, do céu e do sol da vista da varanda, e o controle de olhar em volta |
 | `tour/common.js` | O que o tour e o espelho têm de igual: cores do céu e do sol, ângulo da bússola, textos do controle de sol |
+
+**Vista da varanda.** Com uma unidade escolhida, "Ver a vista da varanda" leva
+a câmera até a varanda dela (`balconyEye` em `tour/tower.js`: no meio da
+varanda, a 1,6 m do piso). Dali se olha em volta arrastando ou com as setas, a
+roda ou a pinça aproximam, "Andar acima" e "Andar abaixo" trocam de unidade na
+mesma fachada e Esc volta à torre; o controle de sol continua valendo (pôr do
+sol, cidade acesa à noite). `espelho.html?unidade=1302&vista=1` abre direto na
+vista. **A cidade ao redor é fictícia**: sai de `tour/city.js`, sempre igual
+(semente fixa em `CITY.seed`), com um parque e a serra na frente da torre e o
+centro nos fundos, e a própria página avisa isso. Ela só é montada na primeira
+vez que se entra na vista e não aparece nas vistas da torre.
 
 **Mudar unidades e status.** Tudo em `data/tower.js`:
 

@@ -11,6 +11,10 @@
    Eixos: a laje usa x para a direita e y para baixo, em metros, com a frente
    da torre em y = 0. Na cena, X = x da laje, Z = y da laje e Y = altura, a
    mesma conversão do tour.
+
+   A "vista da varanda" (mode: "vista") põe a câmera na varanda da unidade
+   escolhida. O que é só dela (a cidade em volta, o olhar, o arrasto) fica em
+   tour/vista.js; aqui ficam o estado, o voo de entrada e saída e a interface.
    ========================================================================== */
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -18,13 +22,14 @@ import { plans, fmtArea } from "../data/plans.js";
 import { tower } from "../data/tower.js";
 import {
   buildTower, buildSite, checkTower, countUnits, planOf, planAzimuth, facadeNormal, facadeAzimuth,
-  unitCardinal, unitSunlit, unitSunHours, unitLabel, STATUS_LABEL, SUN_GRID,
+  unitCardinal, unitSunlit, unitSunHours, unitLabel, balconyEye, stackedUnit, STATUS_LABEL, SUN_GRID,
 } from "./tower.js";
 import { sunPosition, sunDirection, cardinal, formatHour, MONTHS } from "./sun.js";
 import {
   clamp, lerp, ease, cssVar, reduceMotion, coarsePointer,
   skyColor, sunColor, sunStrength, daylight, needleAngle, fillMonths, describeSun,
 } from "./common.js";
+import { VISTA, createLook, attachLook, createCityLayer, anglesOf, directionOf } from "./vista.js";
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -34,7 +39,9 @@ const ui = {
   ficha: $("e-ficha"), fichaVazia: $("e-ficha-vazia"), fichaCorpo: $("e-ficha-corpo"),
   fNum: $("e-f-num"), fStatus: $("e-f-status"), fTipo: $("e-f-tipo"), fArea: $("e-f-area"),
   fAndar: $("e-f-andar"), fVaranda: $("e-f-varanda"), fSol: $("e-f-sol"), fAgora: $("e-f-agora"),
-  fTour: $("e-f-tour"), fVisita: $("e-f-visita"), fNota: $("e-f-nota"),
+  fTour: $("e-f-tour"), fVisita: $("e-f-visita"), fNota: $("e-f-nota"), fVista: $("e-f-vista"),
+  vista: $("e-vista"), vRotulo: $("e-vista-rotulo"), vAcima: $("e-vista-acima"), vAbaixo: $("e-vista-abaixo"),
+  vVoltar: $("e-vista-voltar"), vLive: $("e-vista-live"),
   avail: $("e-avail"), tipo: $("e-tipo"), legend: $("e-legend"), heads: $("e-heads"), grid: $("e-grid"),
   hour: $("e-hour"), month: $("e-month"), hourOut: $("e-hour-out"), sunOut: $("e-sun-out"),
 };
@@ -61,6 +68,8 @@ const state = {
   hour: 10, month: 6,
   view: "fachada",          // vista pronta em uso (null depois que o visitante mexe)
   userMoved: false,
+  mode: "torre",            // "torre" (a maquete da torre) ou "vista" (da varanda da unidade escolhida)
+  startInVista: false,      // ?vista=1 no endereço, com uma unidade válida
 };
 
 function fromUrl() {
@@ -68,6 +77,8 @@ function fromUrl() {
   const rawId = q.get("unidade") || "";
   const id = /^\d{3,4}$/.test(rawId) ? Number(rawId) : NaN;   // só dígitos: nada de "0x516" ou "1302.0"
   if (unitById.has(id)) state.selected = id;
+  // a vista só existe a partir de uma unidade; e só "1" liga
+  state.startInVista = state.selected != null && q.get("vista") === "1";
   const plan = q.get("planta");
   if (tower.bands.some((b) => b.plan === plan)) state.filter = plan;
 }
@@ -175,12 +186,22 @@ function start() {
     raf = 0;
     let busy = false;
     for (const t of [...tweens]) {
+      // Voo da vista: os primeiros quadros desenham a cidade pela primeira vez
+      // (programas, texturas) e podem demorar. O relógio só começa a contar no
+      // primeiro quadro, e um quadro que engasga não conta inteiro: o voo
+      // atrasa em vez de pular.
+      if (t.steady) {
+        if (t.last === undefined) t.t0 = now;
+        else if (now - t.last > 100) t.t0 += now - t.last - 16;
+        t.last = now;
+      }
       const k = clamp((now - t.t0) / t.ms, 0, 1);
       t.step(ease(k));
       if (k >= 1) { tweens.delete(t); if (t.done) t.done(); } else busy = true;
     }
     paintCompass();
     paintFrames();
+    if (city && blend > 0) city.frame(camera, renderer);
     renderer.render(scene, camera);
     if (busy) invalidate();
   }
@@ -275,8 +296,10 @@ function start() {
     put("ball", leaf, new THREE.Matrix4().compose(new THREE.Vector3(t.x + t.r * 0.45, t.h - t.r * 1.5, t.y - t.r * 0.3), I, new THREE.Vector3(t.r * 1.3, t.r * 1.15, t.r * 1.3)));
   }
 
+  let neighborMesh = null;                         // os vizinhos lisos; na vista entram os da cidade (tour/vista.js)
   for (const b of buckets.values()) {
     const mesh = new THREE.InstancedMesh(shapes[b.shape], b.material, b.list.length);
+    if (b.material === M.neighbor) neighborMesh = mesh;
     b.list.forEach((m, i) => mesh.setMatrixAt(i, m));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.computeBoundingSphere();
@@ -376,9 +399,11 @@ function start() {
   let frameKey = "";
   function paintFrames() {
     const sel = unitOf.get(state.selected), hov = state.hover !== state.selected ? unitOf.get(state.hover) : null;
-    selFrame.visible = !!sel;
-    hoverFrame.visible = !!hov;
-    if (!sel && !hov) { frameKey = ""; return; }
+    // na vista a câmera está dentro da unidade escolhida: sem molduras
+    const show = state.mode !== "vista";
+    selFrame.visible = !!sel && show;
+    hoverFrame.visible = !!hov && show;
+    if (!show || (!sel && !hov)) { frameKey = ""; return; }
     const ref = (sel || hov).box.getCenter(fp);
     const px = (2 * Math.tan(THREE.MathUtils.degToRad(FOV) / 2) * camera.position.distanceTo(ref)) / Math.max(1, ui.canvas.clientHeight);
     const t = clamp(px * 3.2, 0.1, 1.2);            // ~3 px de espessura na tela
@@ -394,9 +419,13 @@ function start() {
   let day = 1;
   function paintUnits() {
     const night = 1 - day;
+    // Na vista os interiores ficam neutros (sem status, filtro nem seleção):
+    // de dentro da varanda a cor de status no vizinho só atrapalha. O estado
+    // do interruptor não muda, então ao sair tudo volta como estava.
+    const vista = state.mode === "vista";
     for (const u of units) {
       const m = u.material;
-      if (state.avail) {
+      if (state.avail && !vista) {
         m.color.copy(STATUS_COLOR[u.status]);
         m.emissive.copy(STATUS_COLOR[u.status]);
         m.emissiveIntensity = u.status === "vendida" ? 0.1 : lerp(0.42, 0.3, day);
@@ -405,6 +434,7 @@ function start() {
         m.emissive.copy(WARM);
         m.emissiveIntensity = night * (u.lit ? 0.95 : 0.06);
       }
+      if (vista) continue;
       if (state.filter && u.plan !== state.filter) {
         m.color.lerp(DIMMED, 0.85);
         m.emissiveIntensity *= 0.12;
@@ -427,6 +457,8 @@ function start() {
     controls.dispose();
     scene.remove(group);
     for (const x of trash) x.dispose();
+    detachLook();
+    if (city) city.dispose();
     renderer.dispose();
   }
 
@@ -469,35 +501,44 @@ function start() {
 
   // Encerra o voo em curso. Com snap a câmera vai direto ao destino dele.
   function endFlight(snap) {
-    if (!flight) return;
-    const { t, pos, target } = flight;
-    flight = null;
-    tweens.delete(t);
-    if (snap) {
-      camera.position.copy(pos);
-      controls.target.copy(target);
-      camera.lookAt(target);
-      controls.update();
+    if (flight) {
+      const { t, pos, target, finish } = flight;
+      flight = null;
+      tweens.delete(t);
+      if (snap && finish) finish();                // voo da vista: ele mesmo sabe onde termina
+      else if (snap) {
+        camera.position.copy(pos);
+        controls.target.copy(target);
+        camera.lookAt(target);
+        controls.update();
+      }
     }
+    // um voo de saída da vista cortado no meio não pode deixar a cidade,
+    // a névoa e a lente da vista ligadas no modo torre
+    if (state.mode === "torre") settleTower();
   }
 
   // Um só voo por vez. O caminho é feito em coordenadas esféricas em volta do
   // alvo, para a câmera contornar a torre em vez de atravessá-la.
-  function fly(pos, target, ms) {
+  function fly(pos, target, ms, then) {
     endFlight(false);
     const t0 = controls.target.clone();
     const s0 = new THREE.Spherical().setFromVector3(camera.position.clone().sub(t0));
     const s1 = new THREE.Spherical().setFromVector3(pos.clone().sub(target));
     const dTheta = angleDelta(s0.theta, s1.theta);
     const s = new THREE.Spherical();
+    // Com movimento reduzido o tween chama o "done" na hora, antes de devolver:
+    // ali "t" ainda não existe. Quem diz se o voo é de verdade é "flying".
+    let flying = false;
     const t = tween(ms, (k) => {
       controls.target.lerpVectors(t0, target, k);
       s.set(lerp(s0.radius, s1.radius, k), lerp(s0.phi, s1.phi, k), s0.theta + dTheta * k);
       camera.position.setFromSpherical(s).add(controls.target);
       camera.lookAt(controls.target);
-    }, () => { flight = null; controls.update(); });
+    }, () => { flight = null; controls.update(); if (then && flying) then(); });
+    flying = !!t;
     if (t) flight = { t, pos, target };            // null = corte seco, já terminou
-    else controls.update();
+    else { controls.update(); if (then) then(); }
   }
 
   function paintViews() {
@@ -551,6 +592,257 @@ function start() {
   controls.addEventListener("end", () => { interacting = false; });
   controls.addEventListener("change", () => { if (interacting) userMoved(); invalidate(); });
 
+  /* ==================================================== vista da varanda == */
+  // A câmera vai para a varanda da unidade escolhida e passa a olhar em volta
+  // em vez de girar a torre. "blend" é o quanto do ambiente da vista está
+  // ligado: 0 no modo torre (tudo como sempre foi), 1 na varanda; durante o
+  // voo fica no meio, e a cidade sobe do chão enquanto a câmera chega.
+  const look = createLook();
+  const eye = new THREE.Vector3();                // os olhos de quem está na varanda, na cena
+  const aim = new THREE.Vector3();
+  const TOWER_ENV = { near: camera.near, far: camera.far, fogNear: scene.fog.near, fogFar: scene.fog.far };
+  const towerFog = new THREE.Color();             // a névoa do modo torre, na hora atual
+  let city = null;                                // a cidade só é montada na primeira vista
+  let blend = 0;
+  let vistaFacade = null;                         // fachada da varanda em que a câmera está
+
+  const sunState = () => ({ direction: sunDirection(sunNow, model.north), elevation: sunNow.elevation, day, color: sun.color });
+
+  function cityLayer() {
+    if (!city) {
+      // texturas menores em aparelho de toque ou de tela densa: a memória de vídeo é curta
+      const light = coarsePointer.matches || (window.devicePixelRatio || 1) >= 2;
+      city = createCityLayer({ tower, center, neighbors: site.neighbors, maxAnisotropy: renderer.capabilities.getMaxAnisotropy(), light });
+      group.add(city.group);
+      city.update(sunState());
+      // O primeiro desenho da cidade é caro (programas, texturas, buffers).
+      // Ele é feito aqui, de uma vez e fora do voo: um quadro com a cidade
+      // ligada e, na mesma tarefa, o quadro normal por cima. Na tela só chega
+      // o segundo. (renderer.compile não bastou: o engasgo continuava no voo.)
+      const shown = city.group.visible;
+      city.group.visible = true;
+      renderer.render(scene, camera);
+      city.group.visible = shown;
+      renderer.render(scene, camera);
+    }
+    return city;
+  }
+
+  // Monta a cidade antes do voo, quando o visitante mostra que vai abrir a
+  // vista (mouse ou foco no botão): montar dentro do voo travava a animação.
+  let warming = false;
+  function warmCity() {
+    if (city || warming || state.selected == null) return;
+    warming = true;
+    const run = () => { warming = false; cityLayer(); };
+    if (window.requestIdleCallback) requestIdleCallback(run, { timeout: 400 });
+    else setTimeout(run, 0);
+  }
+
+  function paintFog() {
+    const fog = scene.fog;
+    fog.color.copy(towerFog);
+    fog.near = TOWER_ENV.fogNear;
+    fog.far = TOWER_ENV.fogFar;
+    if (blend > 0 && city) {
+      fog.color.lerp(city.fog.color, blend);
+      fog.near = lerp(fog.near, city.fog.near, blend);
+      fog.far = lerp(fog.far, city.fog.far, blend);
+    }
+    scene.background.copy(fog.color);
+  }
+
+  // Lente, névoa, céu e chão entre os dois modos.
+  function setBlend(k) {
+    blend = clamp(k, 0, 1);
+    const on = blend > 0;
+    if (on) cityLayer().setBlend(blend);
+    else if (city) city.setBlend(0);
+    // O near pequeno só é preciso na varanda (para o guarda-corpo não ser
+    // cortado). No voo, com a câmera longe, ele gastaria a precisão de
+    // profundidade e faria vidro e brises piscarem: desce só no fim.
+    camera.near = lerp(TOWER_ENV.near, VISTA.near, blend * blend * blend);
+    camera.far = on ? VISTA.far : TOWER_ENV.far;
+    camera.updateProjectionMatrix();
+    land.visible = !on;                           // o chão da cidade assume o lugar do chão liso
+    if (neighborMesh) neighborMesh.visible = !on;  // e os vizinhos ganham fachada, como o resto da cidade
+    sky.visible = blend < 1;
+    paintFog();
+  }
+
+  // Garante o modo torre exatamente como ele é: lente, névoa e controles.
+  function settleTower() {
+    if (blend === 0 && controls.enabled && camera.fov === FOV) return;
+    camera.fov = FOV;
+    controls.enabled = true;
+    setBlend(0);
+  }
+
+  // Voo da vista. A posição vai em linha reta (com um desvio opcional, para
+  // sair da varanda antes de entrar em outra); o olhar vai por rumo e
+  // inclinação, então o horizonte nunca tomba; lente e ambiente vão juntos.
+  function glide(to, ms, done) {
+    const p0 = camera.position.clone(), f0 = camera.fov, b0 = blend;
+    const a0 = anglesOf(camera.getWorldDirection(aim));
+    const turn = angleDelta(a0.heading, to.heading);
+    const step = (k) => {
+      camera.position.lerpVectors(p0, to.pos, k);
+      if (to.bulge) camera.position.addScaledVector(to.bulge, Math.sin(Math.PI * k));
+      camera.up.copy(UP);
+      camera.lookAt(directionOf(a0.heading + turn * k, lerp(a0.pitch, to.pitch, k), aim).add(camera.position));
+      camera.fov = lerp(f0, to.fov, k);
+      setBlend(lerp(b0, to.blend, k));
+    };
+    if (to.blend > 0) cityLayer();                 // se ainda não foi montada, que seja antes de o relógio do voo começar
+    const t = tween(ms, step, () => { flight = null; if (done) done(); });
+    if (t) {
+      t.steady = true;
+      flight = { t, finish: () => { step(1); if (done) done(); } };
+    }
+  }
+
+  // quiet: o texto entra na região viva sem ser falado. Vale quando o foco vai
+  // para a cena, cujo aria-label já diz a mesma coisa (senão o leitor repete).
+  function announce(text, quiet = false) {
+    if (quiet) ui.vLive.setAttribute("aria-live", "off"); else ui.vLive.removeAttribute("aria-live");
+    ui.vLive.textContent = text;
+  }
+
+  function paintVista() {
+    const on = state.mode === "vista";
+    ui.vista.hidden = !on;
+    ui.views.hidden = on;
+    ui.fVista.setAttribute("aria-pressed", String(on));
+    ui.fVista.textContent = on ? "Sair da vista da varanda" : "Ver a vista da varanda";
+    document.body.classList.toggle("is-vista", on);
+    paintHint();
+    paintSceneLabel();
+    const u = unitById.get(state.selected);
+    if (!on || !u) return;
+    const strong = document.createElement("strong");
+    strong.textContent = "Vista da varanda";
+    ui.vRotulo.textContent = "";
+    ui.vRotulo.append(strong, ` · Apartamento ${u.id} · ${ordinal(u.floor)} · a ${unitCardinal(tower, u)}`);
+    for (const [b, step, name, where] of [[ui.vAcima, 1, "Andar acima", "acima"], [ui.vAbaixo, -1, "Andar abaixo", "abaixo"]]) {
+      const to = stackedUnit(tower, u, step);
+      // botão desabilitado perde o foco: ele passa para o outro sentido
+      if (!to && document.activeElement === b) (step > 0 ? ui.vAbaixo : ui.vAcima).focus({ preventScroll: true });
+      b.disabled = !to;
+      b.setAttribute("aria-label", to ? `${name}: apartamento ${to.id}, ${ordinal(to.floor)}` : `${name}: não há apartamento ${where} deste`);
+    }
+  }
+
+  function paintSceneLabel() {
+    const u = state.mode === "vista" ? unitById.get(state.selected) : null;
+    ui.canvas.setAttribute("aria-label", u
+      ? `Vista da varanda do apartamento ${u.id}, no ${ordinal(u.floor)}, voltada a ${unitCardinal(tower, u)}. Vista ilustrativa: a cidade ao redor é fictícia. Arraste ou use as setas para olhar em volta, mais e menos para aproximar, PageUp e PageDown para trocar de andar, Esc para voltar à torre.`
+      : `Torre do ${BRAND} em 3D, com ${tower.floors} andares e ${tower.units.length} apartamentos. Arraste ou use as setas para girar, mais e menos para aproximar. As unidades também estão na grade "Unidades por andar".`);
+  }
+
+  function syncUrl() {
+    const url = new URL(location.href);
+    if (state.selected != null) url.searchParams.set("unidade", String(state.selected)); else url.searchParams.delete("unidade");
+    if (state.mode === "vista") url.searchParams.set("vista", "1"); else url.searchParams.delete("vista");
+    history.replaceState(null, "", url);
+  }
+
+  // Leva a câmera à varanda da unidade. Vale para entrar na vista e para
+  // trocar de unidade já dentro dela.
+  function enterVista(u, { instant = false } = {}) {
+    const at = u && balconyEye(tower, u.data, plans);
+    if (!at) return;
+    const from = state.mode;
+    // de varanda em varanda na mesma fachada o olhar continua para onde estava
+    const stay = from === "vista" && blend === 1 && vistaFacade === u.facade;
+    const hop = from === "vista" && blend === 1 && !stay;
+    state.mode = "vista";
+    endFlight(false);
+    controls.enabled = false;
+    setHover(null);
+    const before = eye.clone();
+    eye.set(at.x, at.z, at.y);
+    look.face(at.normal, stay);
+    vistaFacade = u.facade;
+
+    paintVista();                                  // o rótulo da cena já é o da vista quando o foco chegar nela
+    paintUnits();
+    syncUrl();
+    let focused = false;
+    if (from !== "vista") {
+      // no celular a gaveta fecha para a cena aparecer
+      ui.panel.classList.remove("is-open");
+      ui.drawer.setAttribute("aria-expanded", "false");
+      if (!instant) { ui.canvas.focus({ preventScroll: true }); focused = document.activeElement === ui.canvas; }   // as setas passam a olhar em volta
+    }
+    announce(`Vista da varanda do apartamento ${u.id}, ${ordinal(u.floor)}, a ${unitCardinal(tower, u.data)}. Vista ilustrativa: a cidade ao redor é fictícia.`, focused);
+
+    const to = { pos: eye, heading: look.heading, pitch: THREE.MathUtils.degToRad(look.pitch), fov: look.fov, blend: 1 };
+    const arrive = () => { look.apply(camera, eye); invalidate(); };
+    if (stay) {
+      // sai pela frente do guarda-corpo e entra na outra varanda, sem atravessar a laje
+      const far = before.distanceTo(eye);
+      to.bulge = u.normal.clone().multiplyScalar(2.2 + far * 0.3);
+      glide(to, instant ? 0 : clamp(520 + far * 40, 520, 1100), arrive);
+    } else if (hop) {
+      glide(to, 0, arrive);                       // outra fachada: corte seco, sem atravessar a torre
+    } else if (instant || aim.copy(camera.position).sub(eye).dot(u.normal) > 6) {
+      glide(to, instant ? 0 : 1200, arrive);
+    } else {
+      // a câmera está do outro lado da torre: primeiro contorna, depois entra
+      const pose = focusPose(u);
+      fly(pose.pos, pose.target, 700, () => glide(to, 1100, arrive));
+    }
+  }
+
+  // Volta à torre, de frente para a unidade (ou para a fachada, se nenhuma ficou escolhida).
+  function exitVista(u = unitOf.get(state.selected)) {
+    if (state.mode !== "vista") return;
+    const inBar = ui.vista.contains(document.activeElement);
+    endFlight(false);
+    state.mode = "torre";
+    vistaFacade = null;
+    const pose = u ? focusPose(u) : viewPose("fachada");
+    state.view = u ? null : "fachada";
+    state.userMoved = false;
+    paintViews();
+    controls.target.copy(pose.target);
+    paintVista();
+    paintUnits();
+    syncUrl();
+    announce("De volta à torre.");
+    // a barra da vista sumiu: o foco volta para quem abriu a vista, ou para a cena
+    if (inBar) (ui.fVista.offsetParent ? ui.fVista : ui.canvas).focus({ preventScroll: true });
+    const a = anglesOf(aim.copy(pose.target).sub(pose.pos));
+    glide({ pos: pose.pos.clone(), heading: a.heading, pitch: a.pitch, fov: FOV, blend: 0 }, 1000, () => {
+      settleTower();
+      camera.lookAt(pose.target);
+      controls.update();
+      invalidate();
+    });
+  }
+
+  // Olhar em volta: graus de desvio e de inclinação, e o fator da lente.
+  function lookBy(dYaw, dPitch, zoom = 1) {
+    if (state.mode !== "vista" || flight) return;  // durante o voo o olhar é dele
+    look.turn(dYaw, dPitch);
+    if (zoom !== 1) look.zoom(zoom);
+    look.apply(camera, eye);
+    invalidate();
+  }
+
+  function floorStep(step) {
+    const u = unitById.get(state.selected);
+    const to = u && stackedUnit(tower, u, step);
+    if (to) select(to.id);
+  }
+
+  const detachLook = attachLook(ui.canvas, {
+    active: () => state.mode === "vista",
+    // a cena acompanha o dedo: arrastar para a direita vira o olhar para a esquerda
+    turn: (dx, dy) => { const k = look.fov / Math.max(1, ui.canvas.clientHeight); lookBy(-dx * k, dy * k); },
+    zoom: (factor) => lookBy(0, 0, factor),
+  });
+
   /* ---------------------------------------------------------------- sol -- */
   const HEMI_NIGHT = new THREE.Color(0x8fa0c8), HEMI_DAY = new THREE.Color(0xffffff);
   const skyNow = new THREE.Color();
@@ -583,7 +875,10 @@ function start() {
     skyMat.uniforms.top.value.copy(skyNow).lerp(CANVAS, lerp(0.35, 0.62, day));
     skyMat.uniforms.horizon.value.copy(skyNow).lerp(CANVAS, lerp(0.1, 0.3, day));
     scene.fog.color.copy(skyMat.uniforms.horizon.value);
-    scene.background.copy(scene.fog.color);
+    // na vista a névoa e o céu são os da cidade (tour/vista.js), na mesma hora
+    towerFog.copy(scene.fog.color);
+    if (city) city.update(sunState());
+    paintFog();
 
     renderer.shadowMap.needsUpdate = true;
     paintUnits();
@@ -777,6 +1072,7 @@ function start() {
   function select(id, { fly: go = true } = {}) {
     const next = unitById.has(id) ? id : null;
     const changed = next !== state.selected;
+    const prev = unitOf.get(state.selected);
     if (changed) {
       const old = cells.get(state.selected);
       if (old) old.setAttribute("aria-pressed", "false");
@@ -793,15 +1089,21 @@ function start() {
     // No celular a ficha mora dentro da gaveta: escolher uma unidade abre a
     // gaveta, senão o toque na torre não mostra a ficha nem os links dela.
     // (Em tela larga a classe não muda nada: o painel está sempre aberto.)
-    if (next && changed && !ui.panel.classList.contains("is-open")) {
+    // (Na vista a gaveta fica como está: trocar de andar não pode tapar a cena.)
+    if (next && changed && state.mode !== "vista" && !ui.panel.classList.contains("is-open")) {
       ui.panel.classList.add("is-open");
       ui.drawer.setAttribute("aria-expanded", "true");
     }
-    const url = new URL(location.href);
-    if (next) url.searchParams.set("unidade", String(next)); else url.searchParams.delete("unidade");
-    history.replaceState(null, "", url);
+    syncUrl();
 
     const u = unitOf.get(next);
+    if (state.mode === "vista") {
+      // A seleção manda na vista: outra unidade leva à varanda dela; soltar a
+      // unidade volta à torre, de frente para a que estava escolhida.
+      if (!u) exitVista(prev);
+      else if (changed) enterVista(u);
+      return;
+    }
     if (u && go) {
       const pose = focusPose(u);
       if (state.view) { state.view = null; paintViews(); }
@@ -822,6 +1124,12 @@ function start() {
   }
 
   function paintHint() {
+    if (state.mode === "vista") {
+      ui.hint.textContent = coarsePointer.matches
+        ? "Arraste para olhar em volta. Afaste dois dedos para aproximar."
+        : "Arraste para olhar em volta. Role para aproximar.";
+      return;
+    }
     ui.hint.textContent = coarsePointer.matches
       ? "Arraste para girar a torre. Toque numa unidade para ver a ficha."
       : "Arraste para girar a torre. Role para aproximar. Clique numa unidade para ver a ficha.";
@@ -840,6 +1148,9 @@ function start() {
     const b = ev.target.closest("button[data-unit]");
     if (!b) return;
     const id = Number(b.dataset.unit);
+    // na vista, clicar na célula da própria unidade não faz nada: desmarcar
+    // ali derrubaria a vista sem querer (para sair há Esc e "Voltar à torre")
+    if (state.mode === "vista" && id === state.selected) return;
     select(id === state.selected ? null : id);
   });
   ui.grid.addEventListener("focusin", (ev) => {
@@ -866,6 +1177,7 @@ function start() {
     else if (ev.key === "End") to = ev.ctrlKey ? rows[rows.length - 1].at(-1) : rows[r].at(-1);
     else if (ev.key === "PageUp") to = rows[Math.max(0, r - 4)][0];
     else if (ev.key === "PageDown") to = rows[Math.min(rows.length - 1, r + 4)][0];
+    else if (ev.key === "Escape" && state.mode === "vista") { exitVista(); ev.preventDefault(); return; }
     else if (ev.key === "Escape" && state.selected != null) { select(null); ev.preventDefault(); return; }
     else return;
     ev.preventDefault();
@@ -883,6 +1195,15 @@ function start() {
     if (b) setView(b.dataset.view, false);
   });
   ui.avail.addEventListener("click", () => { state.avail = !state.avail; paintAvail(); });
+  ui.fVista.addEventListener("click", () => {
+    if (state.mode === "vista") exitVista();
+    else enterVista(unitOf.get(state.selected));
+  });
+  ui.vAcima.addEventListener("click", () => floorStep(1));
+  ui.vAbaixo.addEventListener("click", () => floorStep(-1));
+  ui.vVoltar.addEventListener("click", () => exitVista());
+  ui.fVista.addEventListener("pointerenter", warmCity);
+  ui.fVista.addEventListener("focus", warmCity);
   ui.tipo.addEventListener("change", () => {
     state.filter = ui.tipo.value;
     const url = new URL(location.href);
@@ -932,13 +1253,13 @@ function start() {
   });
   ui.canvas.addEventListener("pointermove", (ev) => {
     if (tap && ev.pointerId === tap.id && Math.hypot(ev.clientX - tap.x, ev.clientY - tap.y) > tap.slack) tap = null;
-    if (ev.pointerType === "mouse" && down.size === 0) setHover(pick(ev.clientX, ev.clientY));
+    if (ev.pointerType === "mouse" && down.size === 0 && state.mode !== "vista") setHover(pick(ev.clientX, ev.clientY));
   });
   ui.canvas.addEventListener("pointerup", (ev) => {
     down.delete(ev.pointerId);
     const ok = tap && ev.pointerId === tap.id && performance.now() - tap.t < 600;
     tap = null;
-    if (!ok) return;
+    if (!ok || state.mode === "vista") return;      // na vista o clique não escolhe unidade
     const id = pick(ev.clientX, ev.clientY);
     if (id === state.selected) return;             // tocar de novo na mesma unidade não faz nada
     select(id);                                   // tocar fora da torre solta a seleção
@@ -952,7 +1273,28 @@ function start() {
     // As teclas só valem com o foco na cena, nos botões de vista ou em lugar
     // nenhum (body). Na grade e no slider do sol as setas são deles.
     const el = ev.target instanceof Element ? ev.target : null;
-    if (el && el !== document.body && el !== document.documentElement && !el.closest("#e-canvas, #e-views")) return;
+    // Na vista, Esc sai de qualquer lugar (do slider do sol, da ficha...). Só
+    // não em <select> e em campo de texto, onde Esc é deles.
+    if (state.mode === "vista" && ev.key === "Escape" && !(el && el.closest('select, textarea, [contenteditable], input:not([type="range"], [type="checkbox"], [type="radio"], [type="button"])'))) {
+      exitVista();
+      ev.preventDefault();
+      return;
+    }
+    if (el && el !== document.body && el !== document.documentElement && !el.closest("#e-canvas, #e-views, #e-vista")) return;
+    if (state.mode === "vista") {
+      // na varanda as setas olham em volta e Esc volta à torre (a unidade continua escolhida)
+      if (ev.code === "ArrowLeft") lookBy(-6, 0);
+      else if (ev.code === "ArrowRight") lookBy(6, 0);
+      else if (ev.code === "ArrowUp") lookBy(0, 5);
+      else if (ev.code === "ArrowDown") lookBy(0, -5);
+      else if (ev.key === "+" || ev.key === "=") lookBy(0, 0, 0.9);
+      else if (ev.key === "-") lookBy(0, 0, 1 / 0.9);
+      else if (ev.code === "PageUp") floorStep(1);
+      else if (ev.code === "PageDown") floorStep(-1);
+      else return;
+      ev.preventDefault();
+      return;
+    }
     const step = 0.12;
     if (ev.code === "ArrowLeft") orbitBy(-step, 0, 1);
     else if (ev.code === "ArrowRight") orbitBy(step, 0, 1);
@@ -973,6 +1315,13 @@ function start() {
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     setOrbitLimits();
+    if (state.mode === "vista") {
+      // na vista a câmera não se reenquadra: fica na varanda, com o mesmo olhar
+      if (!flight) look.apply(camera, eye);
+      frameKey = "";
+      invalidate();
+      return;
+    }
     // enquanto o visitante não mexeu na câmera, a cena se reenquadra sozinha
     if (!state.userMoved) {
       endFlight(false);
@@ -992,8 +1341,7 @@ function start() {
   ui.hour.step = String(SUN_GRID.step);
   ui.hour.value = String(state.hour);
   fillMonths(ui.month, state.month);
-  ui.canvas.setAttribute("aria-label",
-    `Torre do ${BRAND} em 3D, com ${tower.floors} andares e ${tower.units.length} apartamentos. Arraste ou use as setas para girar, mais e menos para aproximar. As unidades também estão na grade "Unidades por andar".`);
+  paintSceneLabel();
 
   buildGrid();
   buildFilter();
@@ -1012,6 +1360,7 @@ function start() {
     state.selected = null;
     select(id);
     endFlight(true);
+    if (state.startInVista) enterVista(unitOf.get(id), { instant: true });   // ?unidade=1302&vista=1
   } else {
     paintFicha();
   }
@@ -1027,7 +1376,20 @@ function start() {
     get view() { return state.view; },
     get busy() { return tweens.size > 0; },
     get units() { return units.map((u) => u.id); },
-    get camera() { return { position: camera.position.toArray(), target: controls.target.toArray() }; },
+    get mode() { return state.mode; },
+    get fov() { return camera.fov; },
+    // para onde a câmera olha; yaw e pitch (graus, a partir da normal da fachada) só existem na vista
+    get look() {
+      const vista = state.mode === "vista";
+      return { yaw: vista ? look.yaw : null, pitch: vista ? look.pitch : null, direction: camera.getWorldDirection(projected).toArray() };
+    },
+    // a cidade da vista, depois de montada: { boxes, lights, hills, trees, visible }
+    get city() { return city ? { ...city.counts, visible: city.group.visible } : null; },
+    get camera() {
+      // na vista não há alvo de órbita: vale um ponto 10 m à frente do olhar
+      const target = state.mode === "vista" ? camera.getWorldDirection(projected).multiplyScalar(10).add(camera.position) : controls.target;
+      return { position: camera.position.toArray(), target: target.toArray() };
+    },
     // ponto da tela (clientX, clientY) no meio da fachada da unidade, para um teste clicar nela
     screenPoint(id) {
       const u = unitOf.get(id);

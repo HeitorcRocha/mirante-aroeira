@@ -36,6 +36,41 @@
 .views button:focus-visible { border-radius: var(--sc-r-pill); }
 .espelho .scene canvas.is-over { cursor: pointer; }
 
+/* ----------------------------------------------------- vista da varanda -- */
+/* A barra fica sobre a cena, no lugar dos botões de vista. O fundo é dela
+   (quase opaco), para o texto ter contraste em qualquer céu: de dia a cena
+   atrás é clara. */
+.vista {
+  position: absolute; left: var(--sc-4); top: var(--sc-4); z-index: 1;
+  max-width: min(34rem, calc(100% - 2 * var(--sc-4)));
+  display: grid; gap: var(--sc-2); padding: var(--sc-3);
+  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-md);
+  background: color-mix(in oklab, var(--sc-canvas) 92%, transparent);
+  box-shadow: var(--sc-edge);
+}
+.vista__texto { display: grid; gap: 0.15rem; min-width: 0; padding-inline: var(--sc-1); }
+.vista__rotulo { margin: 0; font-size: var(--sc-t-sm); line-height: 1.35; color: var(--sc-ink); font-variant-numeric: tabular-nums; text-wrap: pretty; }
+.vista__rotulo strong { font-weight: 500; color: var(--sc-accent); }
+.vista__aviso { margin: 0; font-size: var(--sc-t-xs); line-height: 1.35; color: var(--sc-ink-soft); text-wrap: pretty; }
+.vista__acoes { display: flex; flex-wrap: wrap; gap: var(--sc-2); }
+.vista__acoes button {
+  flex: 1 1 auto;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sc-1);
+  min-height: var(--tap); min-width: var(--tap); padding: 0 var(--sc-3);
+  border: 1px solid var(--sc-hairline-strong); border-radius: var(--sc-r-pill); background: transparent;
+  color: var(--sc-ink); font-size: var(--sc-t-sm); font-weight: 500; white-space: nowrap; cursor: pointer;
+  transition: border-color 140ms var(--sc-ease-out), color 140ms var(--sc-ease-out);
+}
+.vista__acoes button:focus-visible { border-radius: var(--sc-r-pill); }
+.vista__acoes button:disabled { color: color-mix(in oklab, var(--sc-ink) 38%, transparent); border-color: var(--sc-hairline); cursor: default; }
+.vista__acoes .vista__voltar { border-color: var(--sc-accent); color: var(--sc-accent); }
+/* na vista a dica também fica sobre céu claro: fundo mais fechado */
+.is-vista .scene__hint { background: color-mix(in oklab, var(--sc-canvas) 90%, transparent); color: var(--sc-ink); }
+
+/* botão da ficha: é um <button> com a cara do link "Entrar no tour 3D" */
+.fichau__acoes .fichau__vista { flex-basis: 100%; background: transparent; cursor: pointer; }
+.fichau__vista[aria-pressed="true"] { background: color-mix(in oklab, var(--sc-accent) 16%, transparent); }
+
 /* --------------------------------------------------------------- painel -- */
 .espelho .panel__head { gap: var(--sc-2); }
 .panel__resumo { color: var(--sc-ink-soft); font-size: var(--sc-t-sm); text-wrap: pretty; min-height: 1.5em; }
@@ -148,6 +183,8 @@
   .cell { min-height: 2.15rem; }
   .cell:hover { border-color: var(--sc-ink); }
   .views button[aria-pressed="false"]:hover { color: var(--sc-ink); }
+  .vista__acoes button:not(:disabled):hover { border-color: color-mix(in oklab, var(--sc-ink) 55%, transparent); }
+  .vista__acoes .vista__voltar:hover, .fichau__vista:hover { background: color-mix(in oklab, var(--sc-accent) 12%, transparent); }
 }
 .mirror__aviso { margin-top: var(--sc-3); font-size: var(--sc-t-xs); color: var(--sc-ink-soft); text-wrap: pretty; }
 
@@ -167,6 +204,14 @@
   .espelho .tbar__back { margin-right: auto; }
   .views { left: var(--sc-3); top: var(--sc-3); }
   .views button { padding: 0 var(--sc-3); }
+  /* No celular a barra da vista vai para baixo: em pé ou deitado, o alto da
+     cena é o horizonte, que é o que se veio ver; embaixo fica o chão. A dica
+     e a bússola sobem para os cantos de cima. */
+  .vista { left: var(--sc-3); right: var(--sc-3); top: auto; bottom: var(--sc-3); max-width: none; padding: var(--sc-2); }
+  .vista__texto { padding: var(--sc-1) var(--sc-1) 0; }
+  .vista__acoes button { padding: 0 var(--sc-2); }
+  .is-vista .scene__hint { top: var(--sc-3); bottom: auto; }
+  .is-vista .compass { top: var(--sc-3); bottom: auto; }
   .espelho .panel__head { grid-template-columns: minmax(0, 1fr); gap: var(--sc-1); }
   .espelho .panel__toggle { margin-top: var(--sc-1); }
   .espelho .panel__body { max-height: 46svh; }
@@ -175,6 +220,11 @@
 @media (max-width: 860px) and (max-height: 480px) {
   .espelho .panel__body { max-height: 34svh; }
   .espelho .panel__title { display: none; }
+  /* celular deitado: pouca altura, a barra da vista vira uma linha só */
+  .vista { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .vista__texto { padding: 0 var(--sc-1); }
+  .vista__rotulo { font-size: var(--sc-t-xs); }
+  .vista__acoes { flex-wrap: nowrap; }
 }
 @media (max-width: 480px) {
   /* na barra do espelho sobra lugar: o voltar mantém o nome */

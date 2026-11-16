@@ -55,6 +55,28 @@
       <button type="button" data-view="aerea" aria-pressed="false">Aérea</button>
     </div>
 
+    <!-- Vista da varanda: só aparece com a câmera na varanda de uma unidade
+         (tour/espelho.js troca com os botões de vista acima). -->
+    <div class="vista" id="e-vista" role="group" aria-labelledby="e-vista-rotulo" hidden>
+      <div class="vista__texto">
+        <p class="vista__rotulo" id="e-vista-rotulo">Vista da varanda</p>
+        <p class="vista__aviso" id="e-vista-aviso">Vista ilustrativa: a cidade ao redor é fictícia.</p>
+      </div>
+      <div class="vista__acoes">
+        <button type="button" id="e-vista-acima">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 14.5 12 8.5l6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Andar acima</span>
+        </button>
+        <button type="button" id="e-vista-abaixo">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9.5 12 15.5l6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Andar abaixo</span>
+        </button>
+        <button type="button" class="vista__voltar" id="e-vista-voltar">Voltar à torre</button>
+      </div>
+    </div>
+    <!-- anúncio para leitor de tela ao entrar na vista e ao trocar de unidade -->
+    <p class="sr-only" id="e-vista-live" role="status"></p>
+
     <div class="compass" id="e-compass" aria-hidden="true">
       <svg viewBox="0 0 64 64" width="64" height="64">
         <circle cx="32" cy="32" r="30" class="compass__ring"/>
@@ -97,6 +119,7 @@
             <div><dt>Agora</dt><dd id="e-f-agora"></dd></div>
           </dl>
           <div class="fichau__acoes">
+            <button type="button" class="tlink fichau__vista" id="e-f-vista" aria-pressed="false">Ver a vista da varanda</button>
             <a class="tlink" id="e-f-tour" href="tour.html">Entrar no tour 3D</a>
             <a class="btn btn--sm" id="e-f-visita" href="index.html#visita">Agendar visita</a>
           </div>

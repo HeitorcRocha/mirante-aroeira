@@ -95,6 +95,7 @@ export function planAzimuth(plan) {
 
 /** Azimute (0 = norte, horário) para onde olha uma fachada da torre. */
 export function facadeAzimuth(tower, facade) {
+  if (!Object.hasOwn(FACADES, facade)) throw new Error(`fachada desconhecida: "${facade}"`);
   return mod360(FACADES[facade] - (tower.north || 0));
 }
 
@@ -110,6 +111,7 @@ export function unitCardinal(tower, unit) {
 
 /** Vetor unitário [x, y] no plano da laje que sai da fachada para fora. */
 export function facadeNormal(facade) {
+  if (!Object.hasOwn(FACADES, facade)) throw new Error(`fachada desconhecida: "${facade}"`);
   const a = (FACADES[facade] * Math.PI) / 180;
   return [Math.round(Math.sin(a)), -Math.round(Math.cos(a))];
 }
@@ -232,8 +234,9 @@ export function checkTower(tower, plans) {
     if (seen.has(u.id)) out.push(`${name}: id repetido`);
     seen.add(u.id);
     if (!Number.isInteger(u.id) || Math.floor(u.id / 100) !== u.floor) out.push(`${name}: o número não começa pelo andar ${u.floor}`);
-    if (!(u.status in STATUS_LABEL)) out.push(`${name}: status "${u.status}" desconhecido`);
-    if (!(u.facade in FACADES)) { out.push(`${name}: fachada "${u.facade}" desconhecida`); continue; }
+    if (!Object.hasOwn(STATUS_LABEL, u.status)) out.push(`${name}: status "${u.status}" desconhecido`);
+    // hasOwn, não "in": "toString" e companhia existem em todo objeto
+    if (!Object.hasOwn(FACADES, u.facade)) { out.push(`${name}: fachada "${u.facade}" desconhecida`); continue; }
 
     const band = bandOf(u.floor);
     if (!band) out.push(`${name}: andar ${u.floor} não tem apartamentos`);
@@ -537,4 +540,60 @@ export function buildSite(tower) {
   ];
   for (const [x, y, h, r] of clumps) trees.push({ x, y, h, r });
   return { pads, neighbors, trees, radius: 520 };
+}
+
+/* ------------------------------------------------------- vista da varanda -- */
+
+/** Altura dos olhos de quem está em pé na varanda, a partir do piso. */
+export const EYE_HEIGHT = 1.6;
+
+/**
+ * Onde ficam os olhos de quem está em pé na varanda da unidade: no meio do
+ * trecho da varanda (planBalcony from/to, com flip e fachada resolvidos pelo
+ * mesmo placer do modelo), recuado do guarda-corpo. As varandas têm de 1,4 a
+ * 2,2 m de profundidade: o recuo é metade dela, no máximo 0,8 m, para o
+ * corrimão aparecer embaixo sem a pessoa ficar encostada no vidro da sala.
+ *
+ * @returns {{ x: number, y: number, z: number, azimuth: number,
+ *             normal: [number, number], back: number } | null}
+ *          x, y, z no sistema da laje; normal aponta para fora da fachada;
+ *          back é o recuo em relação à borda da laje. null se a planta não
+ *          existe ou não tem varanda, ou se a fachada da unidade é desconhecida.
+ */
+export function balconyEye(tower, unit, plans) {
+  // fachada desconhecida não tem normal nem azimute: sem isso sairia um olho com NaN
+  if (!unit || !Object.hasOwn(FACADES, unit.facade)) return null;
+  const plan = planOf(unit, plans);
+  const bal = plan && planBalcony(plan);
+  if (!bal) return null;
+  const mid = (bal.from + bal.to) / 2;
+  const back = Math.min(0.8, bal.depth / 2);
+  const p = placer(unit, bal.frontage)(mid, mid, back, back);
+  return {
+    x: p.x0, y: p.y0, z: floorLevel(tower, unit.floor) + EYE_HEIGHT,
+    azimuth: unitAzimuth(tower, unit),
+    normal: facadeNormal(unit.facade),
+    back,
+  };
+}
+
+/**
+ * A unidade vizinha na mesma fachada, "step" andares acima (+1) ou abaixo
+ * (-1). As tipologias mudam por faixa de andares, então nem sempre há uma
+ * unidade exatamente em cima: vale a de centro mais próximo ao longo da
+ * fachada (no empate, a de número menor). null no topo, na base e em andar
+ * sem apartamento nessa fachada.
+ */
+export function stackedUnit(tower, unit, step) {
+  const floor = unit.floor + step;
+  const lateral = unit.facade === "direita" || unit.facade === "esquerda";
+  const along = (u) => (lateral ? u.y + u.d / 2 : u.x + u.w / 2);
+  const here = along(unit);
+  let best = null, bestD = Infinity;
+  for (const u of tower.units) {
+    if (u.floor !== floor || u.facade !== unit.facade) continue;
+    const d = Math.abs(along(u) - here);
+    if (d < bestD - EPS || (Math.abs(d - bestD) <= EPS && best && u.id < best.id)) { best = u; bestD = d; }
+  }
+  return best;
 }
